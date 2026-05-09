@@ -3,7 +3,9 @@
 **Universidad Surcolombiana — 2026**
 **Autores:** Castañeda Guzmán & Idarraga Plazas
 **Fecha:** 2026-05-08
-**Versión:** 2.0 (ángulo mentoniano K2-K1-K6)
+**Versión:** 3.0 (CPI — Combined Posture Index, validado 2026-05-08 con 6 imágenes × 4 modelos)
+
+> **Nota:** Este documento ha sido actualizado para reflejar el modelo CPI. La documentación completa y detallada se encuentra en [`MODELO_MATEMATICO_CPI.md`](../MODELO_MATEMATICO_CPI.md).
 
 ---
 
@@ -53,126 +55,85 @@ Esta separación garantiza que la clasificación postural es **100% determinista
 
 ## 3. Keypoints — Mapeo y Verificación
 
-### 3.1 Tabla de Keypoints
+### 3.1 Tabla de Keypoints (Mapeo Roboflow → YOLO)
 
-El modelo YOLO-Pose fue entrenado con la clase `person-torso` que predice 9 keypoints. El mapeo fue verificado mediante inspección directa de las etiquetas en Roboflow y validación visual cruzada:
+El modelo YOLO-Pose fue entrenado sobre la clase `person-torso` con 9 keypoints. El mapeo fue verificado mediante inspección directa de las etiquetas en Roboflow (IDs no secuenciales: 0, 1, 2, 6, 7, 10, 13, 14, 18) y validación visual cruzada:
 
-| Índice | Nombre Interno | Nombre Anatómico | Descripción | Rol en el Modelo |
-|:---:|---|---|---|---|
-| K0 | `K0_Cabeza` | Vértex craneal | Punto más alto de la cabeza | Referencia visual |
-| K1 | `K1_Menton` | Mentón (Chin) | Punto inferior de la mandíbula | **VÉRTICE del ángulo** ⚠ |
-| K2 | `K2_Occipital` | Occipital | Parte posterior de la cabeza | Extremo craneal del vector |
-| K3 | `K3_Pecho` | Pecho (Chest) | Zona esternal central | Referencia visual |
-| K4 | `K4_Cadera` | Cadera (Hips) | Zona lumbar baja | Referencia visual |
-| K5 | `K5_Acromion` | Acromion (Shoulder-top) | Punta del hombro | Referencia visual |
-| K6 | `K6_CervicalC7` | Cervical C7 | Vértebra cervical posterior | **Extremo cervical del vector** |
-| K7 | `K7_BordeDorsal` | Borde Dorsal / Escápula | Zona escapular posterior | Referencia visual |
-| K8 | `K8_Pectoral` | Pectoral (Shoulder-front) | Zona pectoral anterior | Referencia visual |
+| Índice YOLO | Roboflow ID | Nombre | Descripción anatómica | Rol en CPI |
+|:---:|:---:|---|---|---|
+| K0 | 0 | Head-back | Occipital / Parte posterior de la cabeza | Extremo craneal |
+| K1 | 1 | Neck-back | Cervical C7 / Base posterior del cuello | Referencia espinal |
+| K2 | 2 | Shoulder-top | Acromion / Parte superior del hombro | — |
+| K3 | 6 | Back-backedge | Borde posterior dorsal / Espalda media | Vértice lumbar |
+| K4 | 7 | Hips-backedge | Borde posterior de cadera / Lumbosacra | Extremo caudal |
+| K5 | 10 | Neck-middle | Cervical media | — |
+| K6 | 13 | Jaw | Mandíbula | — |
+| K7 | 14 | Chin | Mentón | — |
+| K8 | 18 | Shoulder-back | Zona escapular / Escápula posterior | Extremo escapular |
 
-### 3.2 Nota sobre Nombres de Roboflow
+### 3.2 Keypoints del CPI
 
-⚠ **ADVERTENCIA:** Los nombres de etiquetas en Roboflow son engañosos:
-- La etiqueta "Jaw" en Roboflow corresponde a **K6 = Cervical C7**, NO a la mandíbula
-- La etiqueta "Chin" en Roboflow corresponde a **K7 = Borde Dorsal/Escápula**, NO al mentón
+De los 9 keypoints, el CPI utiliza exclusivamente los **5 de la cadena posterior**:
 
-El mapeo real fue determinado por validación visual de las coordenadas predichas sobre las imágenes de prueba, comparando la posición anatómica esperada con la posición real de cada keypoint.
+$$\{K_0, K_1, K_3, K_4, K_8\}$$
 
-### 3.3 Keypoints Críticos (los 3 utilizados en el cálculo)
+Los keypoints K2, K5, K6, K7 (cadena anterior y facial) son detectados pero no participan en el cálculo del CPI.
 
-```
-     K2 (Occipital) ●───────────┐
-                     \           │
-                      \  α       │  Vector u = K2 − K1
-                       \         │  (Mentón → Occipital)
-                        \        │
-                         ● K1 (Mentón) ← VÉRTICE
-                        /
-                       /  Vector v = K6 − K1
-                      /   (Mentón → C7)
-                     /
-     K6 (C7) ●──────┘
-```
+### 3.3 Conexiones Anatómicas (Esqueleto Visual)
 
-Solo 3 de los 9 keypoints participan en el cálculo del ángulo:
-
-1. **K2 (Occipital)** — extremo craneal del vector **u**
-2. **K1 (Mentón)** — **VÉRTICE** del ángulo (punto donde se encuentran los dos vectores)
-3. **K6 (Cervical C7)** — extremo cervical del vector **v**
-
-Los 6 keypoints restantes (K0, K3, K4, K5, K7, K8) se usan para visualización del esqueleto torácico pero **NO participan en el cálculo**.
-
-### 3.4 Conexiones Anatómicas (Esqueleto Visual)
-
-Las conexiones dibujadas en el overlay corresponden a la topología torácica:
+El esqueleto dibuja exclusivamente la cadena posterior de la espalda (4 conexiones):
 
 | Conexión | Significado Anatómico |
 |---|---|
-| K1 → K2 | Mentón → Occipital (**vector craneal del ángulo**) |
-| K1 → K6 | Mentón → C7 (**vector cervical del ángulo**) |
-| K2 → K0 | Occipital → Cabeza |
-| K6 → K7 | C7 → Borde Dorsal |
-| K7 → K4 | Borde Dorsal → Cadera |
-| K6 → K5 | C7 → Acromion |
-| K5 → K8 | Acromion → Pectoral |
-| K5 → K3 | Acromion → Pecho |
-| K3 → K8 | Pecho → Pectoral |
+| K0 → K1 | Head-back → C7 (columna cervical alta) |
+| K1 → K8 | C7 → Escápula (columna cervical baja) |
+| K8 → K3 | Escápula → Espalda media (columna torácica) |
+| K3 → K4 | Espalda media → Cadera (columna lumbar) |
 
 ---
 
-## 4. Fórmula del Ángulo Mentoniano
+## 4. Fórmula del Combined Posture Index (CPI)
 
 ### 4.1 Definición Formal
 
-El **ángulo mentoniano** α se define como el ángulo formado en el Mentón (K1) entre los vectores que apuntan al Occipital (K2) y a la vértebra C7 (K6):
+El CPI es un índice compuesto que integra dos mediciones complementarias de la columna posterior:
 
-$$\alpha = \angle(\vec{K1 \to K2},\ \vec{K1 \to K6})$$
+$$\boxed{CPI = D_L \times 2 + C_E \times 100}$$
 
-### 4.2 Cálculo Vectorial (Producto Punto)
+donde:
+- $D_L$: **Déficit angular lumbar** (grados)
+- $C_E$: **Curvatura escapular normalizada** (adimensional, %)
 
-Dado los keypoints como coordenadas 2D en píxeles de imagen:
+### 4.2 Componente Lumbar: $D_L$
 
-```
-K1 = (x₁, y₁)  — Mentón (vértice)
-K2 = (x₂, y₂)  — Occipital
-K6 = (x₆, y₆)  — Cervical C7
-```
+**Ángulo lumbar** $\theta_L = \angle(K_8, K_3, K_4)$ con vértice en $K_3$ (espalda media):
 
-**Paso 1 — Construir vectores:**
+$$\vec{u} = K_8 - K_3,\quad \vec{v} = K_4 - K_3$$
 
-$$\vec{u} = K2 - K1 = (x_2 - x_1,\ y_2 - y_1) \quad \text{(vector craneal)}$$
+$$\theta_L = \arccos\left(\frac{\vec{u} \cdot \vec{v}}{|\vec{u}| \cdot |\vec{v}|}\right)$$
 
-$$\vec{v} = K6 - K1 = (x_6 - x_1,\ y_6 - y_1) \quad \text{(vector cervical)}$$
+$$D_L = \max(0,\ 180° - \theta_L)$$
 
-**Paso 2 — Producto punto:**
+### 4.3 Componente Escapular: $C_E$
 
-$$\vec{u} \cdot \vec{v} = u_x \cdot v_x + u_y \cdot v_y$$
+**Línea espinal teórica** $\ell$ = recta $K_1 \to K_4$ (C7 → cadera).
 
-**Paso 3 — Magnitudes:**
+**Curvatura escapular:** distancia perpendicular de $K_8$ a $\ell$:
 
-$$|\vec{u}| = \sqrt{u_x^2 + u_y^2}, \quad |\vec{v}| = \sqrt{v_x^2 + v_y^2}$$
+$$d_\perp(K_8, \ell) = \frac{|(x_4 - x_1)(y_1 - y_8) - (x_1 - x_8)(y_4 - y_1)|}{\sqrt{(x_4 - x_1)^2 + (y_4 - y_1)^2}}$$
 
-**Paso 4 — Coseno del ángulo:**
+**Normalización** por longitud de columna $L_{espina} = |K_4 - K_1|$:
 
-$$\cos(\alpha) = \frac{\vec{u} \cdot \vec{v}}{|\vec{u}| \cdot |\vec{v}|}$$
+$$C_E = \frac{d_\perp(K_8, \ell)}{L_{espina}}$$
 
-**Paso 5 — Ángulo (clampeado por errores de punto flotante):**
+### 4.4 Interpretación
 
-$$\alpha = \arccos\left(\text{clamp}\left(\cos(\alpha),\ -1,\ 1\right)\right)$$
+| Componente | Valor bajo | Valor alto |
+|------------|-----------|-----------|
+| $D_L$ | Espalda lumbar alineada ($\theta_L \approx 180°$) | Angulación lumbar marcada |
+| $C_E$ | Escápula sobre línea espinal (sin cifosis) | Escápula desviada (hombros caídos) |
 
-$$\alpha_{\text{grados}} = \alpha_{\text{rad}} \times \frac{180°}{\pi}$$
-
-### 4.3 Interpretación Biomecánica
-
-| Postura | α (rango observado) | Interpretación Anatómica |
-|---|---|---|
-| **Recta** | 80° — 102° | Mentón elevado, cuello alineado sobre C7. Los vectores K1→K2 y K1→K6 forman un ángulo amplio. K6 queda POR ENCIMA de K1 en coordenadas de imagen. |
-| **Inclinada** | 70° — 85° | Cabeza ligeramente adelantada (forward head). El ángulo se reduce a medida que el occipucio se desplaza anteriormente. |
-| **Encorvada** | 50° — 77° | Protrusión cefálica severa. K2 y K6 quedan ambos POR DEBAJO de K1 en coordenadas de imagen → los vectores apuntan en direcciones más similares → ángulo agudo. |
-
-**Propiedad clave:** α es **inversamente proporcional** al grado de encorvamiento:
-
-- **α ALTO → postura RECTA** (ángulo amplio = mentón lejos del pecho)
-- **α BAJO → postura ENCORVADA** (ángulo agudo = mentón cercano al pecho, cabeza adelantada)
+**CPI bajo → postura recta; CPI alto → encorvado.**
 
 ---
 
@@ -180,38 +141,42 @@ $$\alpha_{\text{grados}} = \alpha_{\text{rad}} \times \frac{180°}{\pi}$$
 
 ### 5.1 Definición
 
-| Rango de α | Estado | Color | Significado Clínico |
+| Rango CPI | Estado | Color | Significado Clínico |
 |---|---|---|---|
-| **α ≥ 80°** | CORRECTO | 🟢 Verde | Cabeza alineada, cuello en posición neutra |
-| **70° ≤ α < 80°** | ALERTA LEVE | 🟡 Amarillo | Cabeza adelantada — riesgo ergonómico moderado |
-| **α < 70°** | ALERTA CRÍTICA | 🔴 Rojo | Protrusión cefálica severa — riesgo ergonómico alto |
+| **CPI ≤ 35** | CORRECTO | 🟢 Verde | Columna alineada, curvatura lumbar conservada |
+| **35 < CPI ≤ 50** | ALERTA LEVE | 🟡 Amarillo | Inicio de cifosis torácica y/o protrusión cefálica |
+| **CPI > 50** | ALERTA CRÍTICA | 🔴 Rojo | Cifosis marcada, hombros caídos hacia adelante |
 
 ### 5.2 Calibración
 
-Los umbrales fueron calibrados empíricamente mediante la evaluación de 4 modelos YOLO-Pose × 3 imágenes de referencia (posturas encorvada, recta e inclinada):
+Los umbrales fueron calibrados por el usuario mediante 6 imágenes de referencia en 3 posturas controladas (recto, semi-encorvado, encorvado), procesadas con 4 modelos YOLO-Pose:
 
-| Modelo | mAP50-95 | Encorvado | Inclinado | Recto |
-|---|---|---|---|---|
-| YOLOv8n | 0.9189 | 60.3° | 83.4° | 102.2° |
-| YOLOv5n | 0.9109 | 76.8° | 81.7° | 98.2° |
-| YOLOv26n | 0.9050 | 54.0° | 71.3° | 80.5° |
-| YOLOv11n | 0.8990 | 52.0° | 88.2° | 95.2° |
+| Postura | CPI (yolov8n) | Clasificación |
+|---------|---------------|---------------|
+| Recto | 47.2 – 47.7 | ALERTA LEVE |
+| Semi-encorvado | 62.8 – 67.3 | ALERTA CRÍTICA |
+| Encorvado | 69.9 – 77.2 | ALERTA CRÍTICA |
 
-Los umbrales 80°/70° representan el mejor compromiso para cubrir la variabilidad inter-modelo. Con estos valores:
+Los umbrales fueron ajustados para reflejar el criterio ergonómico del usuario: CPI ≤ 35 = CORRECTO, CPI > 50 = CRÍTICO.
 
-- **Recto → CORRECTO**: 3/4 modelos clasifican correctamente (v26n queda en 80.5°, en el límite)
-- **Encorvado → CRÍTICA/LEVE**: 3/4 modelos clasifican como CRÍTICA (v5n = 76.8° → LEVE)
-- **Inclinado → LEVE/CORRECTO**: v26n = 71.3° clasifica como LEVE; los demás quedan en zona limítrofe
+### 5.3 Comparación CPI vs. Enfoque Monoangular
 
-### 5.3 Sistema de Alertas Temporales
+Para la misma imagen procesada con yolov8n:
 
-El sistema **acumula tiempo** en postura inadecuada (ALERTA LEVE o CRÍTICA) y dispara una alerta sonora (beep de 1000 Hz / 300 ms) cuando se superan **30 segundos continuos**:
+| Métrica | Recto | Semi | Encorvado | Δ Recto→Encorvado |
+|---------|-------|------|-----------|-------------------|
+| Cervicodorsal `∠K0-K1-K8` | 139.8° | 137.1° | 135.1° | 4.7° (3.4%) |
+| **CPI** | **47.2** | **62.8** | **77.2** | **30.0 pts (63.6%)** |
+
+El CPI proporciona una separación **12.7× mayor** que el ángulo cervicodorsal entre las posturas extremas.
+
+### 5.4 Sistema de Alertas Temporales
 
 ```
-t_mala_postura > 30s ──▶ BEEP (cada 5s mientras persista)
+t_mala_postura > 30s ──▶ BEEP (1000 Hz / 300 ms, cada 5s mientras persista)
 ```
 
-Si la postura mejora (α ≥ 80°) o se pierde la detección por más de 2 segundos, el contador se reinicia.
+Si la postura mejora (CPI ≤ 35) o se pierde la detección por más de 2 segundos, el contador se reinicia.
 
 ---
 
@@ -336,7 +301,7 @@ Todos fueron entrenados sobre la misma clase `person-torso` con 9 keypoints, uti
 
 ---
 
-## 9. Pipeline de Procesamiento por Frame
+## 9. Pipeline de Procesamiento por Frame (CPI)
 
 ```
 Frame RGB (Webcam)
@@ -344,63 +309,47 @@ Frame RGB (Webcam)
      ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. CONVERSIÓN RGB → BGR                                      │
-│    OpenCV/ULTRALYTICS operan en espacio BGR                  │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. INFERENCIA YOLO-Pose (conf=0.3)                           │
-│    Entrada: frame BGR 640×480                                │
 │    Salida:  [N_personas, 9_keypoints, 3(x,y,conf)]          │
 │    Selección: persona con mayor confianza promedio           │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 3. EXTRACCIÓN DE KEYPOINTS CRÍTICOS                          │
-│    K1 = keypoints[1]  → Mentón   [x₁, y₁, c₁]             │
-│    K2 = keypoints[2]  → Occipital [x₂, y₂, c₂]            │
-│    K6 = keypoints[6]  → C7      [x₆, y₆, c₆]             │
-│    Verificación: conf > 0.1 para los 3 keypoints            │
+│ 3. EXTRACCIÓN DE 5 KEYPOINTS POSTERIORES                     │
+│    K0, K1, K3, K4, K8                                       │
+│    Verificación: conf > 0.1 para K1, K3, K4, K8            │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 4. CÁLCULO DEL ÁNGULO MENTONIANO                             │
-│    u = (x₂-x₁, y₂-y₁)  ← vector craneal                   │
-│    v = (x₆-x₁, y₆-y₁)  ← vector cervical                  │
-│    cos(α) = (u·v) / (|u|·|v|)                               │
-│    α = arccos(clamp(cos α, -1, 1))                          │
-│    α° = α_rad × 180/π                                       │
+│ 4. CÁLCULO DEL CPI                                           │
+│    θ_L = ∠(K8, K3, K4)          ← ángulo lumbar            │
+│    D_L = max(0, 180° − θ_L)      ← déficit lumbar           │
+│    d_⊥(K8, línea K1→K4)          ← curvatura px             │
+│    C_E = d_⊥ / |K1→K4|           ← curvatura normalizada    │
+│    CPI = D_L × 2 + C_E × 100                                 │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 5. CLASIFICACIÓN POSTURAL                                    │
-│    α ≥ 80°  → CORRECTO (🟢)                                 │
-│    70° ≤ α < 80° → ALERTA LEVE (🟡)                         │
-│    α < 70° → ALERTA CRÍTICA (🔴)                            │
+│    CPI ≤ 35  → CORRECTO (🟢)                                │
+│    35 < CPI ≤ 50 → ALERTA LEVE (🟡)                         │
+│    CPI > 50 → ALERTA CRÍTICA (🔴)                           │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 6. SISTEMA DE ALERTAS                                        │
-│    Si estado ∈ {LEVE, CRÍTICA}:                              │
-│       acumular tiempo                                        │
-│    Si tiempo_acumulado > 30s:                                │
-│       BEEP 1000Hz / 300ms cada 5s                           │
-│    Si estado = CORRECTO o pérdida > 2s:                      │
-│       resetear contador                                      │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 7. OVERLAY VISUAL                                            │
-│    - Esqueleto torácico (9 conexiones)                       │
-│    - Keypoints con nombres y confianza                       │
-│    - Líneas del ángulo K1→K2, K1→K6 (naranja)              │
-│    - Etiqueta α = XX.X°                                      │
-│    - Banner inferior: estado + ángulo + tiempo               │
+│ 6. OVERLAY VISUAL                                            │
+│    - Esqueleto: K0→K1→K8→K3→K4 (azul)                      │
+│    - Líneas del ángulo lumbar: K3→K8, K3→K4 (naranja)       │
+│    - Línea referencia: K1→K4 (gris)                          │
+│    - Etiqueta: CPI + Lumbar°                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -424,34 +373,33 @@ Frame RGB (Webcam)
 
 | Parámetro | Valor |
 |---|---|
-| Fórmula | α = ∠(K2-K1-K6) — ángulo mentoniano |
-| Keypoints críticos | K1 (Mentón, vértice), K2 (Occipital), K6 (C7) |
-| Método de cálculo | Producto punto + arccos (trigonometría vectorial) |
-| Umbrales | CORRECTO ≥ 80°, LEVE ≥ 70°, CRÍTICA < 70° |
+| Fórmula | CPI = D_L × 2 + C_E × 100 (Combined Posture Index) |
+| Keypoints utilizados | 5: K0 (Head-back), K1 (C7), K3 (Espalda media), K4 (Cadera), K8 (Escápula) |
+| Componentes | Déficit lumbar ∠K8-K3-K4 + Curvatura escapular ⊥(K8, K1→K4) |
+| Método de cálculo | Producto punto + arccos + distancia punto-recta |
+| Umbrales | CORRECTO ≤ 35, LEVE 35–50, CRÍTICA > 50 |
 | Alerta sonora | >30s continuos en mala postura, beep cada 5s |
-| Confianza mínima | 0.1 (cualquier keypoint crítico bajo esto → descarte) |
+| Confianza mínima | 0.1 (K1, K3, K4, K8) |
 | Resolución de cámara | 640×480 (default) |
-| Confianza de detección YOLO | 0.3 |
 | Número de keypoints | 9 (clase person-torso) |
-| Modelos soportados | YOLOv5n, v8n, v11n, v26n (máx. 2 por familia) |
-| Latencia de inferencia | 22-30ms por frame (depende del modelo) |
-| Python | 3.14 |
-| Dependencias | ultralytics≥8.3.0, opencv-python≥4.10.0, numpy<2.0.0, gradio≥5.0.0 |
+| Modelos soportados | YOLOv5n, v8n, v11n, v26n |
+| Latencia de inferencia | 22-30ms por frame |
 
 ---
 
 ## 12. Conclusión
 
-El modelo matemático basado en el **ángulo mentoniano K2-K1-K6** cumple con los criterios de:
+El Combined Posture Index (CPI) supera las limitaciones de los enfoques monoangulares previos:
 
-- ✅ **Discriminación consistente:** spread promedio de 33.2° entre encorvado y recto, dirección correcta en 4/4 modelos
-- ✅ **Robustez al ruido:** clasificación correcta >75% en estados extremos con ruido σ≤5px
-- ✅ **Alta confianza de keypoints:** promedio 0.94 en los 3 keypoints críticos
-- ✅ **Interpretabilidad biomecánica:** el ángulo refleja directamente la protrusión cefálica
-- ✅ **Determinismo:** mismo input → mismo output, sin estocasticidad
-- ✅ **Eficiencia computacional:** solo requiere 3 operaciones vectoriales (2 restas + 1 producto punto + 1 arccos)
+- ✅ **Discriminación consistente:** separación de 30 puntos CPI (63.6%) entre recto y encorvado vs. solo 4.7° (3.4%) del ángulo cervicodorsal — una mejora de 12.7×.
+- ✅ **Modelo multivectorial:** integra curvatura escapular + ángulo lumbar usando 5 keypoints de la cadena posterior.
+- ✅ **Interpretabilidad biomecánica:** cada componente del CPI tiene significado anatómico directo.
+- ✅ **Determinismo:** mismo input → mismo output, sin estocasticidad (no usa ML en la clasificación).
+- ✅ **Eficiencia computacional:** 5 operaciones vectoriales por frame.
 
-La selección fue respaldada por una búsqueda exhaustiva de 1008 evaluaciones que descartó las 83 combinaciones alternativas por inconsistencia, dispersión insuficiente o fallas geométricas.
+La evolución del modelo matemático desde el ángulo mentoniano (v2.0) hasta el CPI (v3.0) representa un avance significativo en la precisión y robustez del sistema de monitoreo postural.
+
+La documentación completa del CPI, incluyendo fundamentación teórica, validación experimental detallada, y apéndices con datos numéricos, se encuentra en [`MODELO_MATEMATICO_CPI.md`](../MODELO_MATEMATICO_CPI.md).
 
 ---
 

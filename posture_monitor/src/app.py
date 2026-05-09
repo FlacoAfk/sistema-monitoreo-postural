@@ -160,7 +160,6 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             keypoints=[], detected=False, timestamp=time.time(), frame_id=state.frame_count
         )
         state.frame_count += 1
-        # Dibujar "No detectado" sobre el frame
         out = frame_bgr.copy()
         cv2.putText(out, "Sin deteccion — Situate frente a la camara",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -207,7 +206,9 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     )
 
     # Variables locales (usadas en banner y cache HTML)
-    angle = posture.angle_deg
+    cpi = posture.cpi
+    lumbar = posture.lumbar_angle_deg
+    curv = posture.curvature_pct
     bad = posture.bad_posture_accumulated_s
     stat_val = posture.status.value
     is_alert = posture.needs_alert
@@ -263,27 +264,33 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         cv2.rectangle(out, (text_x - 2, text_y - th - 2), (text_x + tw + 2, text_y + 4), (0, 0, 0), -1)
         cv2.putText(out, text, (text_x, text_y), font, font_scale, color, thickness, cv2.LINE_AA)
 
-    # ── Dibujar líneas del ángulo ──────────────────────────────────────
-    if posture.status != PostureStatus.NO_DETECTADO and posture.angle_deg > 0:
-        k0 = keypoints[0]  # Occipital
-        k1 = keypoints[1]  # Cervical C7 (pivote)
-        k3 = keypoints[3]  # Borde dorsal
+    # ── Dibujar líneas del ángulo lumbar ∠K8-K3-K4 + curva K1→K4 ──────
+    if posture.status != PostureStatus.NO_DETECTADO and posture.lumbar_angle_deg > 0:
+        k8_scapula = keypoints[8]  # Escápula
+        k3_back    = keypoints[3]  # Espalda media (VÉRTICE lumbar)
+        k4_hips    = keypoints[4]  # Cadera
+        k1_c7      = keypoints[1]  # C7 (para línea de referencia)
 
-        if k0[2] > 0.1 and k1[2] > 0.1 and k3[2] > 0.1:
-            p1 = (int(k1[0]), int(k1[1]))
-            p0 = (int(k0[0]), int(k0[1]))
-            p3 = (int(k3[0]), int(k3[1]))
+        if k8_scapula[2] > 0.1 and k3_back[2] > 0.1 and k4_hips[2] > 0.1:
+            p_scap = (int(k8_scapula[0]), int(k8_scapula[1]))
+            p_mid  = (int(k3_back[0]), int(k3_back[1]))      # Vértice
+            p_hip  = (int(k4_hips[0]), int(k4_hips[1]))
 
-            # Líneas del ángulo (naranja grueso)
-            cv2.line(out, p1, p0, COLOR_ANGLE_LINE, 3, cv2.LINE_AA)
-            cv2.line(out, p1, p3, COLOR_ANGLE_LINE, 3, cv2.LINE_AA)
+            # Líneas del ángulo lumbar (naranja)
+            cv2.line(out, p_mid, p_scap, COLOR_ANGLE_LINE, 3, cv2.LINE_AA)
+            cv2.line(out, p_mid, p_hip, COLOR_ANGLE_LINE, 3, cv2.LINE_AA)
 
-            # Arco del ángulo
-            angle_text = f"alpha = {posture.angle_deg:.1f} deg"
-            cx_angle = int((p0[0] + p1[0] + p3[0]) / 3) - 60
-            cy_angle = int((p0[1] + p1[1] + p3[1]) / 3)
+            # CPI + ángulo lumbar cerca del vértice
+            angle_text = f"CPI={posture.cpi:.0f} L={posture.lumbar_angle_deg:.0f}"
+            cx_angle = p_mid[0] + 15
+            cy_angle = p_mid[1] - 10
             cv2.putText(out, angle_text, (cx_angle, cy_angle),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+
+        # Línea punteada de referencia K1→K4 (spine)
+        if k1_c7[2] > 0.1:
+            p_c7 = (int(k1_c7[0]), int(k1_c7[1]))
+            cv2.line(out, p_c7, p_hip, (200, 200, 200), 1, cv2.LINE_AA)
 
     # ── Banner inferior de estado ──────────────────────────────────────────
     status_colors_bgr = {
@@ -301,8 +308,8 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # ── Texto del banner inferior ────────────────────────────────────────
     fps_str = f"FPS: {state._current_fps:.0f}" if state._current_fps > 0 else ""
     status_text = f"Estado: {stat_val}"
-    if angle > 0:
-        status_text += f"  |  Angulo: {angle:.1f} deg"
+    if cpi > 0:
+        status_text += f"  |  CPI: {cpi:.0f} (L:{lumbar:.0f}° C:{curv:.1f}%)"
     if bad > 0:
         status_text += f"  |  Mala postura: {bad:.0f}s"
     # FPS a la derecha del banner
@@ -337,12 +344,12 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     if state.frame_count % 30 == 0 and state._current_fps > 0:
         print(f"[FPS] Frame {state.frame_count}: {state._current_fps:.1f} fps | "
               f"inferencia: {inference_ms:.1f}ms GPU | "
-              f"angulo: {angle:.1f}deg | {stat_val}")
+              f"CPI: {cpi:.0f} | {stat_val}")
 
     # ── Construir HTML (cacheado — solo regenera si cambió) ──────────────
-    if angle != state._last_angle or stat_val != state._last_status or abs(bad - state._last_bad_time) > 0.5:
-        state._cached_metrics = _build_metrics_html(angle, stat_val, bad)
-        state._last_angle = angle
+    if abs(cpi - state._last_angle) > 0.5 or stat_val != state._last_status or abs(bad - state._last_bad_time) > 0.5:
+        state._cached_metrics = _build_metrics_html(cpi, stat_val, bad, cpi, lumbar, curv)
+        state._last_angle = cpi
         state._last_bad_time = bad
 
     # Status HTML — solo cambia al cambiar estado o alerta
@@ -359,8 +366,9 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
 
 
 # ── HTML builders ────────────────────────────────────────────────────────────
-def _build_metrics_html(angle: float, status: str, bad_time: float) -> str:
-    """Construye HTML del panel de métricas con anillo SVG animado."""
+def _build_metrics_html(angle: float, status: str, bad_time: float, 
+                         cpi: float = 0, lumbar: float = 0, curv: float = 0) -> str:
+    """Construye HTML del panel de métricas con anillo SVG y CPI."""
     palette = {
         "CORRECTO":       ("#10b981", "badge-ok"),
         "ALERTA LEVE":    ("#f59e0b", "badge-warn"),
@@ -370,10 +378,10 @@ def _build_metrics_html(angle: float, status: str, bad_time: float) -> str:
     }
     color, badge_cls = palette.get(status, ("#94a3b8", "badge-nd"))
 
-    # Anillo SVG: radio 52, circunferencia ~326.73
+    # Anillo SVG: radio 52, max CPI=100
     r = 52
     c = 2 * 3.1416 * r
-    pct = min(max(angle, 0), 100) / 100
+    pct = min(max(cpi, 0), 100) / 100
     dash = c * pct
 
     return f"""
@@ -387,12 +395,14 @@ def _build_metrics_html(angle: float, status: str, bad_time: float) -> str:
                     stroke-dashoffset="{c - dash}"
                     style="color:{color}"/>
             </svg>
-            <div class="pm-gauge-value" style="color:{color}">{angle:.1f}°</div>
+            <div class="pm-gauge-value" style="color:{color}">{cpi:.1f}</div>
         </div>
-        <div class="pm-metric-label">Ángulo Mentoniano &nbsp;∠K2‑K1‑K6</div>
+        <div class="pm-metric-label">CPI — Combined Posture Index</div>
         <div class="pm-metric-sub">
             <span class="pm-badge {badge_cls}">{status}</span>
-            &nbsp;&nbsp; Acumulado: <strong>{bad_time:.0f}s</strong> &nbsp;|&nbsp; Umbral: 30s
+            &nbsp;|&nbsp; Lumbar: <strong>{lumbar:.0f}°</strong>
+            &nbsp;|&nbsp; Curv: <strong>{curv:.1f}%</strong>
+            &nbsp;|&nbsp; Acum: <strong>{bad_time:.0f}s</strong>
         </div>
     </div>
     """
@@ -868,7 +878,7 @@ def build_ui() -> gr.Blocks:
         <div class="pm-header">
             <h1>Sistema de Monitoreo Postural en Tiempo Real</h1>
             <p>
-                Estimación del ángulo mentoniano (∠K2‑K1‑K6) vía YOLO‑Pose y trigonometría vectorial.<br>
+                Estimación del Combined Posture Index (CPI) — curvatura escapular + ángulo lumbar.<br>
                 Universidad Surcolombiana &nbsp;·&nbsp; Castañeda Guzmán &amp; Idarraga Plazas, 2026
             </p>
             <span class="brand-line">
@@ -904,25 +914,27 @@ def build_ui() -> gr.Blocks:
 
             # ── Columna derecha: Métricas ─────────────────────────────
             with gr.Column(scale=1):
-                angle_display = gr.HTML(_build_metrics_html(0, "NO INICIADO", 0))
+                angle_display = gr.HTML(_build_metrics_html(0, "NO INICIADO", 0, 0, 0, 0))
                 status_display = gr.HTML(_build_status_html("NO INICIADO", 0, False))
 
-                gr.HTML('<div class="pm-sidebar-title">Umbrales Ergonómicos</div>')
+                gr.HTML('<div class="pm-sidebar-title">Umbrales CPI</div>')
                 gr.HTML("""
                 <table class="pm-table">
-                    <tr><th>Ángulo α</th><th>Estado</th><th>Significado clínico</th></tr>
-                    <tr><td>α ≥ 80°</td><td><span class="pm-badge badge-ok">Correcto</span></td><td>Cabeza alineada, lordosis cervical neutral</td></tr>
-                    <tr><td>70° ≤ α < 80°</td><td><span class="pm-badge badge-warn">Alerta leve</span></td><td>Cabeza adelantada, flexión cervical incipiente</td></tr>
-                    <tr><td>α < 70°</td><td><span class="pm-badge badge-crit">Alerta crítica</span></td><td>Protrusión cefálica severa, encorvamiento marcado</td></tr>
+                    <tr><th>CPI</th><th>Estado</th><th>Significado</th></tr>
+                    <tr><td>CPI ≤ 35</td><td><span class="pm-badge badge-ok">Correcto</span></td><td>Columna alineada, postura recta</td></tr>
+                    <tr><td>35 < CPI ≤ 50</td><td><span class="pm-badge badge-warn">Alerta leve</span></td><td>Curvatura dorsal leve</td></tr>
+                    <tr><td>CPI > 50</td><td><span class="pm-badge badge-crit">Alerta critica</span></td><td>Cifosis / hombros caidos</td></tr>
                 </table>
                 """)
 
-                gr.HTML('<div class="pm-sidebar-title">Keypoints del Ángulo</div>')
+                gr.HTML('<div class="pm-sidebar-title">Keypoints del CPI (5 pts)</div>')
                 gr.HTML("""
                 <ul class="pm-kp-list">
-                    <li><strong>K2</strong> — Occipital (protuberancia posterior de la cabeza)</li>
-                    <li><strong class="pm-kp-k1">K1</strong> — Mentón · vértice del ángulo α</li>
-                    <li><strong>K6</strong> — Apófisis espinos C7 (pivote cervical posterior)</li>
+                    <li><strong>K0</strong> — Head-back / Occipital</li>
+                    <li><strong>K1</strong> — C7 / Neck-back</li>
+                    <li><strong>K8</strong> — Shoulder-back / Escapula</li>
+                    <li><strong>K3</strong> — Back-backedge / Espalda media</li>
+                    <li><strong>K4</strong> — Hips-backedge / Cadera</li>
                 </ul>
                 """)
 

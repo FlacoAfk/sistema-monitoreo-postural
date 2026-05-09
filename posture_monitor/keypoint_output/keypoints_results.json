@@ -1,0 +1,1442 @@
+{
+  "Recto/Captura de pantalla 2026-05-08 152657-espejo/yolov8n": {
+    "posture": "Recto",
+    "model": "yolov8n",
+    "detected": 9,
+    "avg_conf": 0.9996,
+    "cervicodorsal_K0_K1_K8": 139.8,
+    "toracico_K1_K8_K3": 139.5,
+    "lumbar_K8_K3_K4": 163.1,
+    "columna_total_K0_K1_K4": 179.9,
+    "craneo_torax_K0_K1_K3": 166.9,
+    "desviacion_cabeza_px": 0.1,
+    "curvatura_K8_px": 57.3,
+    "keypoints": [
+      [
+        772.4,
+        307.0,
+        0.999
+      ],
+      [
+        775.6,
+        368.4,
+        1.0
+      ],
+      [
+        761.3,
+        445.2,
+        1.0
+      ],
+      [
+        844.3,
+        606.9,
+        1.0
+      ],
+      [
+        797.9,
+        790.1,
+        0.998
+      ],
+      [
+        730.0,
+        396.8,
+        1.0
+      ],
+      [
+        709.1,
+        359.8,
+        1.0
+      ],
+      [
+        663.1,
+        392.5,
+        1.0
+      ],
+      [
+        836.4,
+        433.3,
+        1.0
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657-espejo/yolov5n": {
+    "posture": "Recto",
+    "model": "yolov5n",
+    "detected": 9,
+    "avg_conf": 0.9959,
+    "cervicodorsal_K0_K1_K8": 137.8,
+    "toracico_K1_K8_K3": 140.3,
+    "lumbar_K8_K3_K4": 161.2,
+    "columna_total_K0_K1_K4": 178.0,
+    "craneo_torax_K0_K1_K3": 164.5,
+    "desviacion_cabeza_px": 2.2,
+    "curvatura_K8_px": 57.1,
+    "keypoints": [
+      [
+        770.5,
+        304.3,
+        0.997
+      ],
+      [
+        772.7,
+        368.1,
+        1.0
+      ],
+      [
+        768.8,
+        445.8,
+        1.0
+      ],
+      [
+        847.9,
+        605.9,
+        0.999
+      ],
+      [
+        801.8,
+        786.2,
+        0.976
+      ],
+      [
+        728.9,
+        395.5,
+        1.0
+      ],
+      [
+        709.9,
+        359.3,
+        0.999
+      ],
+      [
+        663.5,
+        390.4,
+        0.993
+      ],
+      [
+        834.4,
+        431.6,
+        1.0
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657-espejo/yolov26n": {
+    "posture": "Recto",
+    "model": "yolov26n",
+    "detected": 9,
+    "avg_conf": 0.9953,
+    "cervicodorsal_K0_K1_K8": 127.7,
+    "toracico_K1_K8_K3": 134.6,
+    "lumbar_K8_K3_K4": 159.8,
+    "columna_total_K0_K1_K4": 172.8,
+    "craneo_torax_K0_K1_K3": 156.9,
+    "desviacion_cabeza_px": 7.5,
+    "curvatura_K8_px": 75.0,
+    "keypoints": [
+      [
+        777.7,
+        304.6,
+        0.996
+      ],
+      [
+        772.6,
+        364.3,
+        1.0
+      ],
+      [
+        764.6,
+        439.8,
+        0.999
+      ],
+      [
+        857.0,
+        619.8,
+        0.998
+      ],
+      [
+        791.0,
+        820.1,
+        0.971
+      ],
+      [
+        723.3,
+        391.7,
+        1.0
+      ],
+      [
+        707.9,
+        360.5,
+        1.0
+      ],
+      [
+        658.4,
+        395.4,
+        0.995
+      ],
+      [
+        850.6,
+        435.9,
+        0.999
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657-espejo/yolov11n": {
+    "posture": "Recto",
+    "model": "yolov11n",
+    "detected": 9,
+    "avg_conf": 0.9988,
+    "cervicodorsal_K0_K1_K8": 134.6,
+    "toracico_K1_K8_K3": 136.4,
+    "lumbar_K8_K3_K4": 165.3,
+    "columna_total_K0_K1_K4": 176.9,
+    "craneo_torax_K0_K1_K3": 164.4,
+    "desviacion_cabeza_px": 3.3,
+    "curvatura_K8_px": 60.2,
+    "keypoints": [
+      [
+        778.7,
+        303.1,
+        0.998
+      ],
+      [
+        777.0,
+        363.5,
+        1.0
+      ],
+      [
+        767.6,
+        440.9,
+        0.999
+      ],
+      [
+        839.9,
+        614.8,
+        0.999
+      ],
+      [
+        789.0,
+        811.8,
+        0.995
+      ],
+      [
+        730.2,
+        394.0,
+        1.0
+      ],
+      [
+        713.3,
+        360.6,
+        1.0
+      ],
+      [
+        663.3,
+        394.3,
+        1.0
+      ],
+      [
+        838.9,
+        428.0,
+        0.999
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657/yolov8n": {
+    "posture": "Recto",
+    "model": "yolov8n",
+    "detected": 9,
+    "avg_conf": 0.999,
+    "cervicodorsal_K0_K1_K8": 138.7,
+    "toracico_K1_K8_K3": 134.9,
+    "lumbar_K8_K3_K4": 163.9,
+    "columna_total_K0_K1_K4": 177.9,
+    "craneo_torax_K0_K1_K3": 168.5,
+    "desviacion_cabeza_px": 2.4,
+    "curvatura_K8_px": 66.7,
+    "keypoints": [
+      [
+        502.2,
+        298.3,
+        0.998
+      ],
+      [
+        498.1,
+        364.2,
+        1.0
+      ],
+      [
+        496.2,
+        443.1,
+        0.999
+      ],
+      [
+        430.5,
+        616.2,
+        0.999
+      ],
+      [
+        487.1,
+        809.1,
+        0.997
+      ],
+      [
+        542.8,
+        393.5,
+        1.0
+      ],
+      [
+        563.3,
+        355.4,
+        1.0
+      ],
+      [
+        613.5,
+        390.3,
+        0.999
+      ],
+      [
+        429.7,
+        433.0,
+        0.999
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657/yolov5n": {
+    "posture": "Recto",
+    "model": "yolov5n",
+    "detected": 9,
+    "avg_conf": 0.9985,
+    "cervicodorsal_K0_K1_K8": 138.0,
+    "toracico_K1_K8_K3": 132.0,
+    "lumbar_K8_K3_K4": 161.1,
+    "columna_total_K0_K1_K4": 176.3,
+    "craneo_torax_K0_K1_K3": 168.9,
+    "desviacion_cabeza_px": 4.4,
+    "curvatura_K8_px": 74.0,
+    "keypoints": [
+      [
+        502.4,
+        298.5,
+        0.998
+      ],
+      [
+        500.4,
+        365.9,
+        1.0
+      ],
+      [
+        495.1,
+        449.2,
+        1.0
+      ],
+      [
+        442.2,
+        619.9,
+        0.999
+      ],
+      [
+        515.0,
+        790.2,
+        0.991
+      ],
+      [
+        542.5,
+        395.9,
+        1.0
+      ],
+      [
+        561.1,
+        353.2,
+        1.0
+      ],
+      [
+        610.8,
+        389.5,
+        0.999
+      ],
+      [
+        428.9,
+        440.5,
+        1.0
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657/yolov26n": {
+    "posture": "Recto",
+    "model": "yolov26n",
+    "detected": 9,
+    "avg_conf": 0.9957,
+    "cervicodorsal_K0_K1_K8": 128.7,
+    "toracico_K1_K8_K3": 134.6,
+    "lumbar_K8_K3_K4": 160.2,
+    "columna_total_K0_K1_K4": 173.8,
+    "craneo_torax_K0_K1_K3": 158.7,
+    "desviacion_cabeza_px": 6.2,
+    "curvatura_K8_px": 69.4,
+    "keypoints": [
+      [
+        499.4,
+        307.8,
+        0.994
+      ],
+      [
+        502.2,
+        365.2,
+        1.0
+      ],
+      [
+        505.2,
+        435.1,
+        0.999
+      ],
+      [
+        419.0,
+        614.6,
+        0.997
+      ],
+      [
+        476.2,
+        804.1,
+        0.977
+      ],
+      [
+        548.6,
+        390.4,
+        1.0
+      ],
+      [
+        564.8,
+        361.0,
+        1.0
+      ],
+      [
+        612.5,
+        395.1,
+        0.999
+      ],
+      [
+        428.8,
+        430.3,
+        0.997
+      ]
+    ]
+  },
+  "Recto/Captura de pantalla 2026-05-08 152657/yolov11n": {
+    "posture": "Recto",
+    "model": "yolov11n",
+    "detected": 9,
+    "avg_conf": 0.9997,
+    "cervicodorsal_K0_K1_K8": 134.7,
+    "toracico_K1_K8_K3": 137.3,
+    "lumbar_K8_K3_K4": 165.2,
+    "columna_total_K0_K1_K4": 176.1,
+    "craneo_torax_K0_K1_K3": 163.9,
+    "desviacion_cabeza_px": 4.1,
+    "curvatura_K8_px": 58.8,
+    "keypoints": [
+      [
+        495.9,
+        302.6,
+        1.0
+      ],
+      [
+        496.6,
+        363.7,
+        1.0
+      ],
+      [
+        502.4,
+        440.8,
+        1.0
+      ],
+      [
+        427.9,
+        613.0,
+        1.0
+      ],
+      [
+        471.8,
+        804.9,
+        0.998
+      ],
+      [
+        543.0,
+        393.5,
+        1.0
+      ],
+      [
+        562.0,
+        358.8,
+        1.0
+      ],
+      [
+        612.1,
+        391.4,
+        1.0
+      ],
+      [
+        434.1,
+        427.0,
+        1.0
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030-espejo/yolov8n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov8n",
+    "detected": 9,
+    "avg_conf": 0.9993,
+    "cervicodorsal_K0_K1_K8": 137.1,
+    "toracico_K1_K8_K3": 135.9,
+    "lumbar_K8_K3_K4": 156.2,
+    "columna_total_K0_K1_K4": 175.8,
+    "craneo_torax_K0_K1_K3": 166.6,
+    "desviacion_cabeza_px": 4.1,
+    "curvatura_K8_px": 68.8,
+    "keypoints": [
+      [
+        666.5,
+        332.4,
+        0.998
+      ],
+      [
+        686.5,
+        383.9,
+        1.0
+      ],
+      [
+        695.6,
+        456.5,
+        1.0
+      ],
+      [
+        833.5,
+        596.8,
+        1.0
+      ],
+      [
+        818.7,
+        815.6,
+        0.997
+      ],
+      [
+        643.3,
+        426.7,
+        1.0
+      ],
+      [
+        610.6,
+        404.0,
+        1.0
+      ],
+      [
+        570.9,
+        446.7,
+        0.999
+      ],
+      [
+        771.0,
+        424.9,
+        1.0
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030-espejo/yolov5n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov5n",
+    "detected": 9,
+    "avg_conf": 0.9979,
+    "cervicodorsal_K0_K1_K8": 135.1,
+    "toracico_K1_K8_K3": 136.9,
+    "lumbar_K8_K3_K4": 153.4,
+    "columna_total_K0_K1_K4": 178.5,
+    "craneo_torax_K0_K1_K3": 163.3,
+    "desviacion_cabeza_px": 1.4,
+    "curvatura_K8_px": 70.2,
+    "keypoints": [
+      [
+        673.7,
+        329.0,
+        0.996
+      ],
+      [
+        690.4,
+        382.5,
+        1.0
+      ],
+      [
+        703.5,
+        457.0,
+        1.0
+      ],
+      [
+        834.6,
+        595.9,
+        0.999
+      ],
+      [
+        808.2,
+        796.9,
+        0.989
+      ],
+      [
+        645.9,
+        418.9,
+        1.0
+      ],
+      [
+        612.0,
+        396.3,
+        1.0
+      ],
+      [
+        569.1,
+        432.1,
+        0.999
+      ],
+      [
+        776.3,
+        427.8,
+        0.999
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030-espejo/yolov26n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov26n",
+    "detected": 9,
+    "avg_conf": 0.998,
+    "cervicodorsal_K0_K1_K8": 127.5,
+    "toracico_K1_K8_K3": 135.2,
+    "lumbar_K8_K3_K4": 150.5,
+    "columna_total_K0_K1_K4": 179.0,
+    "craneo_torax_K0_K1_K3": 157.7,
+    "desviacion_cabeza_px": 1.0,
+    "curvatura_K8_px": 70.9,
+    "keypoints": [
+      [
+        672.2,
+        330.6,
+        0.996
+      ],
+      [
+        686.4,
+        384.4,
+        1.0
+      ],
+      [
+        694.3,
+        447.5,
+        0.999
+      ],
+      [
+        838.9,
+        586.0,
+        0.999
+      ],
+      [
+        809.9,
+        821.8,
+        0.991
+      ],
+      [
+        645.2,
+        425.0,
+        1.0
+      ],
+      [
+        613.1,
+        407.2,
+        1.0
+      ],
+      [
+        565.4,
+        448.4,
+        0.998
+      ],
+      [
+        770.0,
+        419.3,
+        0.999
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030-espejo/yolov11n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov11n",
+    "detected": 9,
+    "avg_conf": 0.9995,
+    "cervicodorsal_K0_K1_K8": 133.3,
+    "toracico_K1_K8_K3": 136.9,
+    "lumbar_K8_K3_K4": 156.2,
+    "columna_total_K0_K1_K4": 179.7,
+    "craneo_torax_K0_K1_K3": 162.5,
+    "desviacion_cabeza_px": 0.3,
+    "curvatura_K8_px": 64.8,
+    "keypoints": [
+      [
+        668.7,
+        323.1,
+        1.0
+      ],
+      [
+        685.8,
+        374.3,
+        1.0
+      ],
+      [
+        694.6,
+        457.7,
+        1.0
+      ],
+      [
+        835.2,
+        580.7,
+        1.0
+      ],
+      [
+        828.5,
+        795.2,
+        0.997
+      ],
+      [
+        641.7,
+        423.6,
+        1.0
+      ],
+      [
+        610.6,
+        404.9,
+        1.0
+      ],
+      [
+        567.0,
+        448.9,
+        1.0
+      ],
+      [
+        767.0,
+        412.0,
+        1.0
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030/yolov8n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov8n",
+    "detected": 9,
+    "avg_conf": 0.9996,
+    "cervicodorsal_K0_K1_K8": 134.1,
+    "toracico_K1_K8_K3": 135.3,
+    "lumbar_K8_K3_K4": 154.1,
+    "columna_total_K0_K1_K4": 176.8,
+    "craneo_torax_K0_K1_K3": 163.9,
+    "desviacion_cabeza_px": 3.2,
+    "curvatura_K8_px": 72.6,
+    "keypoints": [
+      [
+        602.0,
+        327.1,
+        1.0
+      ],
+      [
+        583.5,
+        382.6,
+        1.0
+      ],
+      [
+        576.4,
+        458.4,
+        1.0
+      ],
+      [
+        434.5,
+        599.2,
+        1.0
+      ],
+      [
+        460.5,
+        833.9,
+        0.998
+      ],
+      [
+        630.6,
+        427.6,
+        1.0
+      ],
+      [
+        664.2,
+        401.8,
+        1.0
+      ],
+      [
+        707.6,
+        446.7,
+        1.0
+      ],
+      [
+        496.9,
+        424.2,
+        1.0
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030/yolov5n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov5n",
+    "detected": 9,
+    "avg_conf": 0.9992,
+    "cervicodorsal_K0_K1_K8": 132.0,
+    "toracico_K1_K8_K3": 135.1,
+    "lumbar_K8_K3_K4": 157.6,
+    "columna_total_K0_K1_K4": 177.7,
+    "craneo_torax_K0_K1_K3": 160.7,
+    "desviacion_cabeza_px": 2.5,
+    "curvatura_K8_px": 73.1,
+    "keypoints": [
+      [
+        605.4,
+        322.5,
+        0.998
+      ],
+      [
+        590.1,
+        382.2,
+        1.0
+      ],
+      [
+        565.2,
+        468.9,
+        1.0
+      ],
+      [
+        446.1,
+        598.3,
+        1.0
+      ],
+      [
+        463.4,
+        803.5,
+        0.996
+      ],
+      [
+        631.8,
+        425.8,
+        1.0
+      ],
+      [
+        660.7,
+        399.5,
+        1.0
+      ],
+      [
+        708.8,
+        443.5,
+        1.0
+      ],
+      [
+        499.6,
+        429.4,
+        1.0
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030/yolov26n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov26n",
+    "detected": 9,
+    "avg_conf": 0.9961,
+    "cervicodorsal_K0_K1_K8": 123.8,
+    "toracico_K1_K8_K3": 134.7,
+    "lumbar_K8_K3_K4": 151.4,
+    "columna_total_K0_K1_K4": 175.1,
+    "craneo_torax_K0_K1_K3": 154.5,
+    "desviacion_cabeza_px": 4.8,
+    "curvatura_K8_px": 69.5,
+    "keypoints": [
+      [
+        597.4,
+        331.0,
+        0.997
+      ],
+      [
+        586.2,
+        386.2,
+        1.0
+      ],
+      [
+        578.8,
+        447.5,
+        0.999
+      ],
+      [
+        435.4,
+        586.4,
+        0.997
+      ],
+      [
+        460.3,
+        816.7,
+        0.975
+      ],
+      [
+        628.7,
+        424.5,
+        1.0
+      ],
+      [
+        656.7,
+        404.7,
+        1.0
+      ],
+      [
+        703.0,
+        448.8,
+        1.0
+      ],
+      [
+        503.9,
+        419.9,
+        0.997
+      ]
+    ]
+  },
+  "Semi-encorvado/Captura de pantalla 2026-05-08 153030/yolov11n": {
+    "posture": "Semi-encorvado",
+    "model": "yolov11n",
+    "detected": 9,
+    "avg_conf": 0.9992,
+    "cervicodorsal_K0_K1_K8": 133.8,
+    "toracico_K1_K8_K3": 134.3,
+    "lumbar_K8_K3_K4": 157.2,
+    "columna_total_K0_K1_K4": 178.5,
+    "craneo_torax_K0_K1_K3": 164.6,
+    "desviacion_cabeza_px": 1.4,
+    "curvatura_K8_px": 69.1,
+    "keypoints": [
+      [
+        600.1,
+        326.9,
+        1.0
+      ],
+      [
+        582.9,
+        376.9,
+        1.0
+      ],
+      [
+        572.7,
+        447.9,
+        1.0
+      ],
+      [
+        435.9,
+        590.8,
+        1.0
+      ],
+      [
+        448.0,
+        804.3,
+        0.994
+      ],
+      [
+        628.4,
+        420.5,
+        1.0
+      ],
+      [
+        660.7,
+        403.6,
+        1.0
+      ],
+      [
+        705.9,
+        449.3,
+        1.0
+      ],
+      [
+        498.1,
+        415.9,
+        1.0
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856-espejo/yolov8n": {
+    "posture": "Encorvado",
+    "model": "yolov8n",
+    "detected": 9,
+    "avg_conf": 0.9991,
+    "cervicodorsal_K0_K1_K8": 135.1,
+    "toracico_K1_K8_K3": 134.0,
+    "lumbar_K8_K3_K4": 150.1,
+    "columna_total_K0_K1_K4": 173.9,
+    "craneo_torax_K0_K1_K3": 165.1,
+    "desviacion_cabeza_px": 6.0,
+    "curvatura_K8_px": 82.7,
+    "keypoints": [
+      [
+        661.9,
+        344.5,
+        0.999
+      ],
+      [
+        635.5,
+        394.1,
+        1.0
+      ],
+      [
+        606.7,
+        461.6,
+        1.0
+      ],
+      [
+        446.3,
+        597.9,
+        1.0
+      ],
+      [
+        458.6,
+        833.9,
+        0.995
+      ],
+      [
+        681.2,
+        443.6,
+        1.0
+      ],
+      [
+        720.5,
+        426.3,
+        1.0
+      ],
+      [
+        764.8,
+        477.4,
+        1.0
+      ],
+      [
+        533.8,
+        425.5,
+        1.0
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856-espejo/yolov5n": {
+    "posture": "Encorvado",
+    "model": "yolov5n",
+    "detected": 9,
+    "avg_conf": 0.9988,
+    "cervicodorsal_K0_K1_K8": 131.5,
+    "toracico_K1_K8_K3": 139.8,
+    "lumbar_K8_K3_K4": 150.7,
+    "columna_total_K0_K1_K4": 176.5,
+    "craneo_torax_K0_K1_K3": 157.3,
+    "desviacion_cabeza_px": 3.5,
+    "curvatura_K8_px": 70.9,
+    "keypoints": [
+      [
+        650.9,
+        340.6,
+        0.999
+      ],
+      [
+        632.7,
+        395.0,
+        1.0
+      ],
+      [
+        608.7,
+        488.0,
+        1.0
+      ],
+      [
+        461.2,
+        590.9,
+        1.0
+      ],
+      [
+        470.2,
+        796.8,
+        0.991
+      ],
+      [
+        679.8,
+        443.8,
+        1.0
+      ],
+      [
+        713.2,
+        425.1,
+        1.0
+      ],
+      [
+        761.6,
+        464.3,
+        0.999
+      ],
+      [
+        540.3,
+        434.3,
+        1.0
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856-espejo/yolov26n": {
+    "posture": "Encorvado",
+    "model": "yolov26n",
+    "detected": 9,
+    "avg_conf": 0.9961,
+    "cervicodorsal_K0_K1_K8": 129.1,
+    "toracico_K1_K8_K3": 135.7,
+    "lumbar_K8_K3_K4": 145.7,
+    "columna_total_K0_K1_K4": 178.6,
+    "craneo_torax_K0_K1_K3": 158.2,
+    "desviacion_cabeza_px": 1.3,
+    "curvatura_K8_px": 75.6,
+    "keypoints": [
+      [
+        657.0,
+        350.0,
+        0.997
+      ],
+      [
+        635.0,
+        400.1,
+        1.0
+      ],
+      [
+        614.8,
+        463.0,
+        0.999
+      ],
+      [
+        452.8,
+        579.2,
+        0.999
+      ],
+      [
+        468.3,
+        805.7,
+        0.973
+      ],
+      [
+        676.6,
+        444.2,
+        1.0
+      ],
+      [
+        714.1,
+        431.7,
+        1.0
+      ],
+      [
+        759.4,
+        477.3,
+        0.999
+      ],
+      [
+        542.8,
+        425.4,
+        0.999
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856-espejo/yolov11n": {
+    "posture": "Encorvado",
+    "model": "yolov11n",
+    "detected": 9,
+    "avg_conf": 0.9979,
+    "cervicodorsal_K0_K1_K8": 136.0,
+    "toracico_K1_K8_K3": 134.2,
+    "lumbar_K8_K3_K4": 154.0,
+    "columna_total_K0_K1_K4": 175.5,
+    "craneo_torax_K0_K1_K3": 166.2,
+    "desviacion_cabeza_px": 4.1,
+    "curvatura_K8_px": 74.4,
+    "keypoints": [
+      [
+        662.9,
+        348.1,
+        0.999
+      ],
+      [
+        636.7,
+        392.9,
+        1.0
+      ],
+      [
+        602.0,
+        465.0,
+        1.0
+      ],
+      [
+        451.7,
+        584.1,
+        0.999
+      ],
+      [
+        442.5,
+        795.2,
+        0.983
+      ],
+      [
+        677.6,
+        444.1,
+        1.0
+      ],
+      [
+        715.9,
+        436.2,
+        1.0
+      ],
+      [
+        759.6,
+        486.9,
+        1.0
+      ],
+      [
+        541.0,
+        419.8,
+        1.0
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856/yolov8n": {
+    "posture": "Encorvado",
+    "model": "yolov8n",
+    "detected": 9,
+    "avg_conf": 0.9986,
+    "cervicodorsal_K0_K1_K8": 138.1,
+    "toracico_K1_K8_K3": 135.7,
+    "lumbar_K8_K3_K4": 153.2,
+    "columna_total_K0_K1_K4": 173.9,
+    "craneo_torax_K0_K1_K3": 167.2,
+    "desviacion_cabeza_px": 5.9,
+    "curvatura_K8_px": 76.8,
+    "keypoints": [
+      [
+        601.4,
+        345.3,
+        0.999
+      ],
+      [
+        628.1,
+        394.0,
+        1.0
+      ],
+      [
+        663.1,
+        464.9,
+        1.0
+      ],
+      [
+        810.8,
+        600.4,
+        0.999
+      ],
+      [
+        809.0,
+        828.9,
+        0.991
+      ],
+      [
+        586.8,
+        441.4,
+        1.0
+      ],
+      [
+        549.3,
+        427.0,
+        1.0
+      ],
+      [
+        506.1,
+        474.9,
+        1.0
+      ],
+      [
+        725.5,
+        428.3,
+        0.999
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856/yolov5n": {
+    "posture": "Encorvado",
+    "model": "yolov5n",
+    "detected": 9,
+    "avg_conf": 0.9899,
+    "cervicodorsal_K0_K1_K8": 128.9,
+    "toracico_K1_K8_K3": 137.9,
+    "lumbar_K8_K3_K4": 151.6,
+    "columna_total_K0_K1_K4": 175.3,
+    "craneo_torax_K0_K1_K3": 156.4,
+    "desviacion_cabeza_px": 4.2,
+    "curvatura_K8_px": 72.3,
+    "keypoints": [
+      [
+        610.2,
+        344.7,
+        0.993
+      ],
+      [
+        629.2,
+        392.4,
+        1.0
+      ],
+      [
+        662.5,
+        473.2,
+        1.0
+      ],
+      [
+        818.2,
+        578.8,
+        0.99
+      ],
+      [
+        827.0,
+        790.0,
+        0.934
+      ],
+      [
+        584.4,
+        439.2,
+        1.0
+      ],
+      [
+        546.5,
+        425.5,
+        1.0
+      ],
+      [
+        497.0,
+        467.7,
+        0.999
+      ],
+      [
+        724.6,
+        421.8,
+        0.995
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856/yolov26n": {
+    "posture": "Encorvado",
+    "model": "yolov26n",
+    "detected": 9,
+    "avg_conf": 0.9974,
+    "cervicodorsal_K0_K1_K8": 133.5,
+    "toracico_K1_K8_K3": 136.7,
+    "lumbar_K8_K3_K4": 146.4,
+    "columna_total_K0_K1_K4": 174.9,
+    "craneo_torax_K0_K1_K3": 162.6,
+    "desviacion_cabeza_px": 5.1,
+    "curvatura_K8_px": 72.5,
+    "keypoints": [
+      [
+        602.9,
+        346.2,
+        0.992
+      ],
+      [
+        629.8,
+        396.4,
+        1.0
+      ],
+      [
+        651.3,
+        466.1,
+        0.999
+      ],
+      [
+        814.7,
+        577.9,
+        0.999
+      ],
+      [
+        805.6,
+        809.9,
+        0.991
+      ],
+      [
+        590.6,
+        447.0,
+        1.0
+      ],
+      [
+        547.2,
+        432.7,
+        1.0
+      ],
+      [
+        500.8,
+        478.9,
+        0.997
+      ],
+      [
+        718.9,
+        420.8,
+        0.998
+      ]
+    ]
+  },
+  "Encorvado/Captura de pantalla 2026-05-08 152856/yolov11n": {
+    "posture": "Encorvado",
+    "model": "yolov11n",
+    "detected": 9,
+    "avg_conf": 0.9995,
+    "cervicodorsal_K0_K1_K8": 135.3,
+    "toracico_K1_K8_K3": 135.9,
+    "lumbar_K8_K3_K4": 151.7,
+    "columna_total_K0_K1_K4": 175.7,
+    "craneo_torax_K0_K1_K3": 164.6,
+    "desviacion_cabeza_px": 3.8,
+    "curvatura_K8_px": 71.5,
+    "keypoints": [
+      [
+        603.3,
+        344.2,
+        1.0
+      ],
+      [
+        629.0,
+        388.8,
+        1.0
+      ],
+      [
+        661.5,
+        465.2,
+        1.0
+      ],
+      [
+        813.0,
+        570.1,
+        1.0
+      ],
+      [
+        821.8,
+        789.3,
+        0.996
+      ],
+      [
+        588.4,
+        445.0,
+        1.0
+      ],
+      [
+        550.7,
+        432.7,
+        1.0
+      ],
+      [
+        506.6,
+        481.9,
+        1.0
+      ],
+      [
+        720.4,
+        413.8,
+        1.0
+      ]
+    ]
+  }
+}

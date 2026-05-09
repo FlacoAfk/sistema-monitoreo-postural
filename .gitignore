@@ -1,4 +1,4 @@
-# ── Model weights: solo incluir best.pt de modelos NANO, excluir resto ──
+# ── Model weights: solo best.pt de nano/small, excluir todo lo demas ──
 **/epoch*.pt
 **/last*.pt
 **/last_fixed*.pt
@@ -27,9 +27,18 @@ flagged/
 *.swo
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# ── AI tools ──
+.atl/
 
 # ── Temp / outputs ──
 *.tmp
 outputs/
 runs/
 temp/
+
+# ── Obsolete files (old mentonian angle, replaced by CPI) ──
+validate_mentoniano.py
+verify_dataset_labels.py
+imagenes de pruebas del modelo matematico/overlay/k2k1k6_*

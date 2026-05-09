@@ -1,34 +1,33 @@
 """
 Component 2 — Backend Matemático (posture_analyzer.py)
 
-Recibe coordenadas de los 9 keypoints del torso, calcula el ángulo de flexión
-cervicodorsal θ mediante trigonometría vectorial (producto punto) y clasifica
-la postura según umbrales ergonómicos.
+Calcula el Combined Posture Index (CPI) usando 5 keypoints de la cadena
+posterior de la espalda: K0, K1, K8, K3, K4.
 
-Mapeo REAL verificado visualmente (2026-05-08):
-    K0 = Head-back / Occipital (parte posterior de la cabeza)
-    K1 = Neck-back / Cervical posterior C7  ← PIVOTE ⚠
-    K2 = Shoulder-top / Acromion
-    K3 = Back-backedge / Borde dorsal (espalda)
-    K4 = Hips-backedge / Cadera
-    K5 = Neck-middle / Cervical media
-    K6 = Jaw / Mandíbula
-    K7 = Chin / Mentón
-    K8 = Shoulder-back / Zona escapular
+Fórmula CPI (validada 2026-05-08 con 6 imágenes × 4 modelos):
+  CPI = déficit_lumbar × 2 + curvatura_escapular_normalizada × 100
 
-Fórmula:
-    u = K0_Occipital − K1_C7          (vector cefálico)
-    v = K3_BordeDorsal − K1_C7        (vector dorsolumbar)
-    θ = ∠(K1→K0, K1→K3)
-    cos(θ) = (u·v) / (|u| × |v|)
-    θ = arccos(cos(θ))  en radianes
-    α = 180° − θ  (ángulo de flexión cervicodorsal)
-    α bajo → head forward posture (protrusión cefálica)
+donde:
+  déficit_lumbar = max(0, 180° - ∠K8-K3-K4)
+  curvatura_escapular_normalizada = dist_⊥(K8, línea K1→K4) / |K1→K4|
 
-Clasificación:
-    α ≤ 15°  → CORRECTO (verde)
-    15° < α ≤ 25° → ALERTA LEVE (amarillo)
-    α > 25°  → ALERTA CRÍTICA (rojo)
+Mapeo Roboflow verificado (2026-05-08):
+| K (YOLO) | Roboflow ID | Nombre |
+|:--------:|:-----------:|--------|
+| K0 | 0  | Head-back (Occipital) |
+| K1 | 1  | Neck-back (Cervical C7) |
+| K2 | 2  | Shoulder-top (Acromion) |
+| K3 | 6  | Back-backedge (Espalda media) |
+| K4 | 7  | Hips-backedge (Cadera) |
+| K5 | 10 | Neck-middle (Cervical media) |
+| K6 | 13 | Jaw (Mandíbula) |
+| K7 | 14 | Chin (Mentón) |
+| K8 | 18 | Shoulder-back (Escápula) |
+
+Clasificación (umbrales calibrados por el usuario):
+  CPI ≤ 35           → CORRECTO (verde)
+  35 < CPI ≤ 50      → ALERTA LEVE (amarillo)
+  CPI > 50           → ALERTA CRÍTICA (rojo)
 
 Autor: Sistema de Monitoreo Postural — Universidad Surcolombiana 2026
 """
@@ -52,7 +51,6 @@ class PostureStatus(Enum):
 
     @property
     def color_hex(self) -> str:
-        """Color hexadecimal asociado al estado."""
         return {
             PostureStatus.CORRECTO: "#00FF00",
             PostureStatus.ALERTA_LEVE: "#FFD700",
@@ -62,7 +60,6 @@ class PostureStatus(Enum):
 
     @property
     def color_bgr(self) -> tuple[int, int, int]:
-        """Color BGR (OpenCV) asociado al estado."""
         return {
             PostureStatus.CORRECTO: (0, 255, 0),
             PostureStatus.ALERTA_LEVE: (0, 215, 255),
@@ -78,18 +75,24 @@ class PostureResult:
     timestamp: float
     frame_id: int
     status: PostureStatus = PostureStatus.NO_DETECTADO
-    angle_deg: float = 0.0
-    angle_rad: float = 0.0
-    confidence: float = 0.0  # Confianza promedio de los keypoints críticos (K0, K1, K3)
-    # Tiempo acumulado en postura inadecuada (ALERTA LEVE o CRÍTICA) en segundos
+
+    # CPI — Combined Posture Index (métrica principal)
+    cpi: float = 0.0
+
+    # Componentes del CPI
+    lumbar_angle_deg: float = 0.0       # ∠K8-K3-K4
+    curvature_pct: float = 0.0           # curvatura escapular normalizada (%)
+    spine_length_px: float = 0.0         # |K1→K4|
+
+    # Ángulos auxiliares (solo informativos)
+    cervicodorsal_deg: float = 0.0      # ∠K0-K1-K8
+    angle_deg: float = 0.0              # alias para compatibilidad
+
+    confidence: float = 0.0
     bad_posture_accumulated_s: float = 0.0
-    # Detalles de vectores para debug
-    u_vector: tuple[float, float] = (0.0, 0.0)
-    v_vector: tuple[float, float] = (0.0, 0.0)
 
     @property
     def needs_alert(self) -> bool:
-        """Indica si se debe emitir alerta (>30s continuos en mala postura)."""
         return self.bad_posture_accumulated_s > 30.0 and self.status in (
             PostureStatus.ALERTA_LEVE,
             PostureStatus.ALERTA_CRITICA,
@@ -98,27 +101,58 @@ class PostureResult:
 
 class PostureAnalyzer:
     """
-    Analizador postural determinista — sin ML, pura trigonometría vectorial.
+    Analizador postural — Combined Posture Index (CPI) multivectorial.
 
-    Calcula el ángulo de flexión cervicodorsal a partir de 3 keypoints críticos:
-    K0 (Occipital), K1 (Cervical posterior C7, pivote), K3 (Borde dorsal).
+    Usa 5 keypoints de la cadena posterior (K0, K1, K8, K3, K4) para
+    calcular curvatura escapular + ángulo lumbar → CPI.
 
-    Fórmula: θ = ∠(K1→K0, K1→K3)
-
-    Mantiene un contador de tiempo acumulado en postura inadecuada para
-    el sistema de alertas (>30s continuos dispara notificación).
+    CPI bajo → espalda recta; CPI alto → encorvado.
     """
 
-    # Umbrales ergonómicos (en grados)
-    THRESHOLD_LEVE: float = 15.0   # α > 15° → ALERTA LEVE
-    THRESHOLD_CRITICO: float = 25.0  # α > 25° → ALERTA CRÍTICA
-    ALERT_CONTINUOUS_SECONDS: float = 30.0  # Tiempo continuo para disparar alerta
+    # Umbrales CPI calibrados por el usuario
+    CPI_LEVE: float = 35.0      # CPI > 35 → ALERTA LEVE
+    CPI_CRITICO: float = 50.0   # CPI > 50 → ALERTA CRÍTICA
+    ALERT_CONTINUOUS_SECONDS: float = 30.0
 
     def __init__(self) -> None:
-        """Inicializa el analizador con contadores en cero."""
-        self._bad_posture_start: Optional[float] = None  # Timestamp cuando empezó mala postura
+        self._bad_posture_start: Optional[float] = None
         self._last_status: PostureStatus = PostureStatus.NO_DETECTADO
         self._last_update: float = time.time()
+
+    # ── Helpers estáticos ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _vec_len(ax: float, ay: float, bx: float, by: float) -> float:
+        return math.sqrt((bx - ax) ** 2 + (by - ay) ** 2)
+
+    @staticmethod
+    def _angle_at_vertex(ax: float, ay: float,
+                          vx: float, vy: float,
+                          bx: float, by: float) -> float:
+        """Ángulo en el vértice V: ∠(A-V-B). Retorna grados o -1 si inválido."""
+        ux, uy = ax - vx, ay - vy
+        wx, wy = bx - vx, by - vy
+        nu = math.sqrt(ux * ux + uy * uy)
+        nw = math.sqrt(wx * wx + wy * wy)
+        if nu < 1.0 or nw < 1.0:
+            return -1.0
+        cos_a = (ux * wx + uy * wy) / (nu * nw)
+        cos_a = max(-1.0, min(1.0, cos_a))
+        return math.degrees(math.acos(cos_a))
+
+    @staticmethod
+    def _point_line_distance(px: float, py: float,
+                              ax: float, ay: float,
+                              bx: float, by: float) -> float:
+        """Distancia perpendicular de P a la línea AB. Retorna px o -1."""
+        dx = bx - ax
+        dy = by - ay
+        line_len = math.sqrt(dx * dx + dy * dy)
+        if line_len < 1.0:
+            return -1.0
+        return abs(dx * (ay - py) - (ax - px) * dy) / line_len
+
+    # ── Análisis principal ─────────────────────────────────────────────────
 
     def analyze(
         self,
@@ -128,88 +162,82 @@ class PostureAnalyzer:
         frame_id: int = 0,
     ) -> PostureResult:
         """
-        Analiza una detección de pose y calcula el ángulo cervicodorsal.
+        Calcula el CPI a partir de 5 keypoints posteriores.
 
         Args:
             keypoints: Lista de 9 keypoints [[x, y, conf], ...].
-            detected: Si hubo detección de persona.
-            timestamp: Timestamp del frame (usa time.time() si es None).
-            frame_id: ID secuencial del frame.
+            detected: Si hubo detección.
+            timestamp: Timestamp del frame.
+            frame_id: ID secuencial.
 
         Returns:
-            PostureResult con ángulo, estado y tiempo acumulado.
+            PostureResult con CPI, ángulos, curvatura y estado.
         """
         if timestamp is None:
             timestamp = time.time()
 
-        # Verificar que tenemos keypoints válidos
         if not detected or len(keypoints) < 9:
             return self._no_detection(timestamp, frame_id)
 
-        # Extraer keypoints críticos (topología verificada 2026-05-08)
-        k0_occ = keypoints[0]     # K0: Occipital (parte posterior cabeza): [x, y, conf]
-        k1_cerv = keypoints[1]    # K1: Cervical posterior C7 (PIVOTE): [x, y, conf]
-        k3_dorsal = keypoints[3]  # K3: Borde dorsal / Espalda: [x, y, conf]
+        # ── Extraer los 5 keypoints de la cadena posterior ──────────────────
+        k0 = keypoints[0]  # Head-back / Occipital
+        k1 = keypoints[1]  # C7
+        k3 = keypoints[3]  # Back-backedge / Espalda media
+        k4 = keypoints[4]  # Hips-backedge / Cadera
+        k8 = keypoints[8]  # Shoulder-back / Escápula
 
-        # Verificar confianza mínima en los 3 keypoints críticos
         MIN_CONF = 0.1
-        if k0_occ[2] < MIN_CONF or k1_cerv[2] < MIN_CONF or k3_dorsal[2] < MIN_CONF:
+        if any(kp[2] < MIN_CONF for kp in (k1, k3, k4, k8)):
             return self._no_detection(timestamp, frame_id)
 
-        # ── Cálculo del ángulo cervicodorsal ─────────────────────────────────
-        # Vector u = K0 − K1  (C7 → Occipital = cefálico)
-        ux = k0_occ[0] - k1_cerv[0]
-        uy = k0_occ[1] - k1_cerv[1]
-
-        # Vector v = K3 − K1  (C7 → BordeDorsal = dorsolumbar)
-        vx = k3_dorsal[0] - k1_cerv[0]
-        vy = k3_dorsal[1] - k1_cerv[1]
-
-        # Magnitudes
-        mag_u = math.sqrt(ux * ux + uy * uy)
-        mag_v = math.sqrt(vx * vx + vy * vy)
-
-        if mag_u < 1e-6 or mag_v < 1e-6:
+        # ── 1. Ángulo lumbar ∠K8-K3-K4 ──────────────────────────────────────
+        lumbar_deg = self._angle_at_vertex(
+            k8[0], k8[1], k3[0], k3[1], k4[0], k4[1]
+        )
+        if lumbar_deg < 0:
             return self._no_detection(timestamp, frame_id)
+        lumbar_deficit = max(0.0, 180.0 - lumbar_deg)
 
-        # Producto punto y ángulo
-        dot = ux * vx + uy * vy
-        cos_theta = dot / (mag_u * mag_v)
-        # Clampear por errores de punto flotante
-        cos_theta = max(-1.0, min(1.0, cos_theta))
-        theta_rad = math.acos(cos_theta)
-        theta_deg = math.degrees(theta_rad)
+        # ── 2. Curvatura escapular: dist_⊥(K8, línea K1→K4) ────────────────
+        curv_px = self._point_line_distance(
+            k8[0], k8[1], k1[0], k1[1], k4[0], k4[1]
+        )
+        spine_len = self._vec_len(k1[0], k1[1], k4[0], k4[1])
+        if curv_px < 0 or spine_len < 10:
+            return self._no_detection(timestamp, frame_id)
+        curvature_pct = (curv_px / spine_len) * 100.0
 
-        # Ángulo de flexión cervicodorsal α = 180° − θ
-        alpha_flexion_deg = 180.0 - theta_deg
+        # ── 3. CPI — Combined Posture Index ─────────────────────────────────
+        cpi = lumbar_deficit * 2.0 + curvature_pct
 
-        # Confianza promedio de los keypoints críticos
-        conf_critical = (k0_occ[2] + k1_cerv[2] + k3_dorsal[2]) / 3.0
+        # ── 4. Ángulos auxiliares ───────────────────────────────────────────
+        cerv_deg = self._angle_at_vertex(
+            k0[0], k0[1], k1[0], k1[1], k8[0], k8[1]
+        ) if k0[2] >= MIN_CONF else -1.0
 
-        # ── Clasificación ─────────────────────────────────────────────────────
-        if alpha_flexion_deg <= self.THRESHOLD_LEVE:
+        # ── 5. Confianza promedio en los 5 keypoints usados ──────────────────
+        conf_vals = [k0[2], k1[2], k3[2], k4[2], k8[2]]
+        conf_avg = sum(conf_vals) / len(conf_vals)
+
+        # ── 6. Clasificación ─────────────────────────────────────────────────
+        if cpi <= self.CPI_LEVE:
             status = PostureStatus.CORRECTO
-        elif alpha_flexion_deg <= self.THRESHOLD_CRITICO:
+        elif cpi <= self.CPI_CRITICO:
             status = PostureStatus.ALERTA_LEVE
         else:
             status = PostureStatus.ALERTA_CRITICA
 
-        # ── Contador de tiempo en mala postura ────────────────────────────────
-        bad_accumulated = 0.0
+        # ── 7. Contador de tiempo en mala postura ────────────────────────────
         now = timestamp
-
         if status in (PostureStatus.ALERTA_LEVE, PostureStatus.ALERTA_CRITICA):
             if self._bad_posture_start is None:
-                # Inicia nuevo período de mala postura
                 self._bad_posture_start = now
-                bad_accumulated = 0.0
+                bad_accum = 0.0
             else:
-                # Ya estaba en mala postura → acumular tiempo
-                bad_accumulated = now - self._bad_posture_start
+                bad_accum = now - self._bad_posture_start
         else:
-            # Postura correcta → resetear contador
             self._bad_posture_start = None
-            bad_accumulated = 0.0
+            bad_accum = 0.0
 
         self._last_status = status
         self._last_update = now
@@ -218,25 +246,22 @@ class PostureAnalyzer:
             timestamp=timestamp,
             frame_id=frame_id,
             status=status,
-            angle_deg=round(alpha_flexion_deg, 2),
-            angle_rad=round(theta_rad, 4),
-            confidence=round(conf_critical, 4),
-            bad_posture_accumulated_s=round(bad_accumulated, 1),
-            u_vector=(round(ux, 2), round(uy, 2)),
-            v_vector=(round(vx, 2), round(vy, 2)),
+            cpi=round(cpi, 1),
+            lumbar_angle_deg=round(lumbar_deg, 1),
+            curvature_pct=round(curvature_pct, 1),
+            spine_length_px=round(spine_len, 1),
+            cervicodorsal_deg=round(cerv_deg, 1) if cerv_deg > 0 else 0.0,
+            angle_deg=round(lumbar_deg, 1),  # compatibilidad: mostrar lumbar
+            confidence=round(conf_avg, 4),
+            bad_posture_accumulated_s=round(bad_accum, 1),
         )
 
     def _no_detection(self, timestamp: float, frame_id: int) -> PostureResult:
-        """Construye resultado para frame sin detección válida."""
-        # NO reseteamos el contador en una pérdida momentánea (1-2 frames)
-        # Solo si pasan más de 2 segundos sin detección
         elapsed = timestamp - self._last_update
         if elapsed > 2.0:
             self._bad_posture_start = None
-
         self._last_update = timestamp
         self._last_status = PostureStatus.NO_DETECTADO
-
         return PostureResult(
             timestamp=timestamp,
             frame_id=frame_id,
@@ -244,7 +269,6 @@ class PostureAnalyzer:
         )
 
     def reset_counters(self) -> None:
-        """Reinicia todos los contadores internos."""
         self._bad_posture_start = None
         self._last_status = PostureStatus.NO_DETECTADO
         self._last_update = time.time()

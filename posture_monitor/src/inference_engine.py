@@ -28,36 +28,42 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-# ── Keypoint names — verified visual topology (2026-05-08) ────────────────
+# ── Keypoint names — Roboflow mapping (verified 2026-05-08) ──
+# | K (YOLO) | Roboflow ID | Nombre anatómico |
+# |:--------:|:-----------:|------------------|
+# | K0       | 0           | Head-back (Occipital) |
+# | K1       | 1           | Neck-back (Cervical C7) ← PIVOTE anatómico |
+# | K2       | 2           | Shoulder-top (Acromion) |
+# | K3       | 6           | Back-backedge (Espalda media) |
+# | K4       | 7           | Hips-backedge (Cadera lumbosacra) |
+# | K5       | 10          | Neck-middle (Cervical media) |
+# | K6       | 13          | Jaw (Mandíbula) |
+# | K7       | 14          | Chin (Mentón) ← VÉRTICE del ángulo mentoniano ⚠ |
+# | K8       | 18          | Shoulder-back (Escápula) |
 KEYPOINT_NAMES: list[str] = [
-    "K0_Occipital",       # Head-back (parte posterior cabeza)
-    "K1_CervicalC7",      # Neck-back (cervical posterior) ← PIVOTE
-    "K2_Acromion",         # Shoulder-top
-    "K3_BordeDorsal",     # Back-backedge (espalda)
-    "K4_Cadera",          # Hips-backedge
-    "K5_CervicalMedia",   # Neck-middle
-    "K6_Mandibula",       # Jaw
-    "K7_Menton",          # Chin
-    "K8_Escapula",        # Shoulder-back
+    "K0_HeadBack",      # 0: Occipital / Head-back
+    "K1_NeckBack",      # 1: Cervical C7 / Neck-back
+    "K2_ShoulderTop",   # 2: Acromion / Shoulder-top
+    "K3_BackBorde",     # 3: Espalda media / Back-backedge
+    "K4_HipsBack",      # 4: Cadera lumbosacra / Hips-backedge
+    "K5_NeckMid",       # 5: Cervical media / Neck-middle
+    "K6_Jaw",           # 6: Mandíbula / Jaw
+    "K7_Chin",          # 7: Mentón / Chin ← VÉRTICE ⚠
+    "K8_ShoulderBack",  # 8: Escápula / Shoulder-back
 ]
 
-# Keypoints críticos para el ángulo cervicodorsal θ = ∠(K1→K0, K1→K3):
-# K0 (Occipital)        → extremo craneal del vector
-# K1 (Cervical C7)      → VÉRTICE / pivote del ángulo ⚠
-# K3 (Borde dorsal)     → extremo dorsal del vector
-CRITICAL_KEYPOINT_INDICES: list[int] = [0, 1, 3]
+# Keypoints críticos para el ángulo cervicodorsal α = ∠(K0-K1-K8) en C7:
+# K0 (Head-back / Occipital) → extremo craneal del vector
+# K1 (Neck-back / Cervical C7) → VÉRTICE del ángulo ⚠
+# K8 (Shoulder-back / Escápula) → extremo dorsal del vector
+CRITICAL_KEYPOINT_INDICES: list[int] = [0, 1, 8]
 
-# Conexiones anatómicas para visualización del torso
+# Conexiones anatómicas — Cadena posterior (espalda)
 SKELETON_CONNECTIONS: list[tuple[int, int]] = [
-    (0, 1),  # Occipital → C7
-    (1, 2),  # C7 → Acromion
-    (1, 5),  # C7 → Cervical media
-    (5, 6),  # Cervical media → Mandíbula
-    (6, 7),  # Mandíbula → Mentón
-    (1, 3),  # C7 → Borde dorsal (vector v — línea dorsolumbar)
-    (3, 4),  # Borde dorsal → Cadera
-    (2, 8),  # Acromion → Escápula
-    (0, 1),  # Occipital → C7 (vector u — línea cefálica) [duplicado intencional: se dibuja más grueso]
+    (0, 1),  # Head-back → C7 (columna cervical alta)
+    (1, 8),  # C7 → Escápula (columna cervical baja)
+    (8, 3),  # Escápula → Espalda media (columna torácica)
+    (3, 4),  # Espalda media → Cadera (columna lumbar)
 ]
 
 # Colores BGR para visualización
@@ -112,15 +118,15 @@ class KeypointResult:
 
 # ── Colores BGR para visualización de keypoints ────────────────────────────
 COLORS_BGR: list[tuple[int, int, int]] = [
-    (255, 0, 0),    # K0: azul (Occipital — crítico, extremo craneal)
-    (0, 0, 255),    # K1: rojo (Cervical C7 — EL MÁS CRÍTICO, pivote) ⚠
-    (0, 200, 200),  # K2: cyan claro (Acromion)
-    (0, 255, 0),    # K3: verde (Borde Dorsal — crítico, extremo dorsal)
-    (128, 128, 128),# K4: gris (Cadera)
-    (200, 200, 0),  # K5: cyan oscuro (Cervical media)
-    (0, 255, 255),  # K6: amarillo (Mandíbula)
-    (200, 0, 200),  # K7: magenta (Mentón)
-    (200, 0, 200),  # K8: magenta (Escápula)
+    (255, 0, 0),     # K0: azul (Head-back / Occipital — crítico, extremo craneal)
+    (0, 165, 255),   # K1: naranja (Neck-back / C7 — crítico, pivote)
+    (0, 255, 0),     # K2: verde (Shoulder-top / Acromion)
+    (0, 200, 200),   # K3: cyan claro (Back-backedge / Espalda media)
+    (128, 128, 128), # K4: gris (Hips-backedge / Cadera)
+    (200, 200, 0),   # K5: cyan oscuro (Neck-middle / Cervical media)
+    (200, 0, 200),   # K6: magenta (Jaw / Mandíbula)
+    (0, 0, 255),     # K7: rojo (Chin / Mentón — VÉRTICE del ángulo) ⚠
+    (128, 0, 128),   # K8: púrpura (Shoulder-back / Escápula)
 ]
 
 
@@ -475,32 +481,38 @@ def draw_pose_overlay(
         cx, cy = int(kp[0]), int(kp[1])
         color = COLORS_BGR[i] if i < len(COLORS_BGR) else COLOR_KEYPOINT
         cv2.circle(out, (cx, cy), 4, color, -1, cv2.LINE_AA)
-        # Etiqueta para K0, K1, K3 (los críticos)
-        if i in (0, 1, 3):
+        # Etiqueta para K0, K1, K8 (críticos de la cadena posterior)
+        if i in (0, 1, 8):
             cv2.putText(out, KEYPOINT_NAMES[i], (cx + 8, cy - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1, cv2.LINE_AA)
 
-    # Dibujar líneas del ángulo si está disponible
+    # Dibujar líneas del ángulo lumbar ∠K8-K3-K4 + referencia K1→K4
     if angle_deg is not None:
-        k0 = result.get_kp_coords(0)  # Occipital
-        k1 = result.get_kp_coords(1)  # Cervical posterior C7 (pivote)
-        k3 = result.get_kp_coords(3)  # Borde dorsal
+        k8_scapula = result.get_kp_coords(8)
+        k3_back    = result.get_kp_coords(3)
+        k4_hips    = result.get_kp_coords(4)
+        k1_c7      = result.get_kp_coords(1)
 
-        if k0[2] > 0 and k1[2] > 0 and k3[2] > 0:
-            p1 = (int(k1[0]), int(k1[1]))  # pivote C7
-            p0 = (int(k0[0]), int(k0[1]))  # occipital
-            p3 = (int(k3[0]), int(k3[1]))  # borde dorsal
+        if k8_scapula[2] > 0 and k3_back[2] > 0 and k4_hips[2] > 0:
+            p_scap = (int(k8_scapula[0]), int(k8_scapula[1]))
+            p_mid  = (int(k3_back[0]), int(k3_back[1]))    # Espalda media (vértice)
+            p_hip  = (int(k4_hips[0]), int(k4_hips[1]))
 
-            # Vector K1→K0 (cefálico)
-            cv2.line(out, p1, p0, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
-            # Vector K1→K3 (dorsolumbar)
-            cv2.line(out, p1, p3, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+            # Vector K3→K8 (torácico superior)
+            cv2.line(out, p_mid, p_scap, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+            # Vector K3→K4 (lumbar inferior)
+            cv2.line(out, p_mid, p_hip, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
 
-            # Mostrar ángulo en el centro aproximado del triángulo
-            cx_angle = int((p0[0] + p1[0] + p3[0]) / 3) - 40
-            cy_angle = int((p0[1] + p1[1] + p3[1]) / 3)
-            cv2.putText(out, f"α={angle_deg:.1f}°", (cx_angle, cy_angle),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+            # Línea de referencia K1→K4 (spine teórico)
+            if k1_c7[2] > 0:
+                p_c7 = (int(k1_c7[0]), int(k1_c7[1]))
+                cv2.line(out, p_c7, p_hip, (180, 180, 180), 1, cv2.LINE_AA)
+
+            # Mostrar ángulo lumbar cerca del vértice (K3)
+            cx_angle = p_mid[0] + 15
+            cy_angle = p_mid[1] - 10
+            cv2.putText(out, f"L={angle_deg:.1f}°", (cx_angle, cy_angle),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
 
     # Banner de estado
     status_colors: dict[str, tuple[int, int, int]] = {
