@@ -528,7 +528,7 @@ def _build_metrics_html(angle: float, status: str, bad_time: float,
       <div class="pm-conf-bar-wrap">
         <div class="pm-conf-bar" id="pm-conf-bar" style="width:{conf*100:.0f}%;background:{'#22c55e' if conf >= 0.7 else '#f59e0b' if conf >= 0.4 else '#ef4444'}"></div>
       </div>
-      <span id="pm-conf-badge" style="display:{'inline-block' if conf < 0.4 and conf > 0 else 'none'};font-size:10px;font-weight:700;color:#ef4444;margin-top:4px">&#9888; Detección débil</span>
+      <span id="pm-conf-badge" style="display:{'inline-block' if conf < 0.4 else 'none'};font-size:10px;font-weight:700;color:#ef4444;margin-top:4px">&#9888; Detección débil</span>
     </div>
   </div>
   <script>
@@ -581,7 +581,7 @@ def _build_metrics_html(angle: float, status: str, bad_time: float,
     var confBadge = el.querySelector('#pm-conf-badge');
     if (confBar) {{ confBar.style.width = confPct + '%'; confBar.style.background = confColor; }}
     if (confVal) {{ confVal.textContent = confPct + '%'; confVal.style.color = confColor; }}
-    if (confBadge) {{ confBadge.style.display = (conf < 0.4 && conf > 0) ? 'inline-block' : 'none'; }}
+    if (confBadge) {{ confBadge.style.display = (conf < 0.4) ? 'inline-block' : 'none'; }}
   }})();
   </script>"""
 
