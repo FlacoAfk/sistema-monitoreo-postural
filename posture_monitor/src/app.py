@@ -22,7 +22,6 @@ from __future__ import annotations
 import csv
 import tempfile
 import time
-import winsound
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -32,6 +31,15 @@ import gradio as gr
 import numpy as np
 import torch
 from ultralytics import YOLO
+
+# winsound solo existe en Windows — importación condicional
+try:
+    import winsound as _winsound
+    def _beep(freq: int, duration: int) -> None:
+        _winsound.Beep(freq, duration)
+except ImportError:
+    def _beep(freq: int, duration: int) -> None:
+        pass  # No-op en Linux/Mac
 
 # ── Detección automática de GPU ──────────────────────────────────────────────
 DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -255,7 +263,10 @@ from inference_engine import (
 from posture_analyzer import PostureAnalyzer, PostureStatus
 
 # ── Rutas de modelos ─────────────────────────────────────────────────────────
-BASE_DIR = Path(r"C:\Users\elkaw\Desktop\Modelos entrenados")
+# BASE_DIR: por defecto busca los pesos en ../  (relativo a este script).
+# Se puede sobreescribir con la variable de entorno POSTURE_MODELS_DIR.
+import os as _os
+BASE_DIR = Path(_os.environ.get("POSTURE_MODELS_DIR", "") or Path(__file__).resolve().parent.parent.parent)
 MODEL_CONFIGS = [
     {
         "name": "yolov8n_pose_b16_lr05 🚀 (Más rápido — 22ms)",
@@ -642,7 +653,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         now = time.time()
         if now - state.last_alert_beep > 5.0:
             try:
-                winsound.Beep(1000, 300)  # 1000Hz, 300ms
+                _beep(1000, 300)  # 1000Hz, 300ms
             except Exception:
                 pass
             state.last_alert_beep = now

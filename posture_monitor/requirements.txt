@@ -1,5 +1,13 @@
-ultralytics>=8.3.0
-opencv-python>=4.10.0
-numpy>=1.23.0,<2.0.0
-gradio>=5.0.0
-matplotlib>=3.8.0
+# Sistema de Monitoreo Postural — dependencias
+# Instalar con: pip install -r requirements.txt
+#
+# Nota sobre PyTorch: la versión con CUDA se instala por separado.
+# CPU (cualquier OS):
+#   pip install torch==2.11.0 torchvision --index-url https://download.pytorch.org/whl/cpu
+# GPU NVIDIA CUDA 12.6 (recomendado):
+#   pip install torch==2.11.0+cu126 torchvision --index-url https://download.pytorch.org/whl/cu126
+
+ultralytics==8.4.42
+opencv-python==4.11.0.86
+numpy==1.26.4
+gradio==6.14.0

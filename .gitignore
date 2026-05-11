@@ -37,6 +37,12 @@ desktop.ini
 outputs/
 runs/
 temp/
+*.bak
+*.bak[0-9]*
+
+# ── Generated validation outputs (reproducibles con validate_keypoints.py) ──
+posture_monitor/keypoint_output/*.png
+posture_monitor/outputs/
 
 # ── Obsolete files (old mentonian angle, replaced by CPI) ──
 validate_mentoniano.py

@@ -8,10 +8,8 @@ Castañeda Guzmán & Idarraga Plazas, 2026
 ## Resumen
 
 Sistema de detección de posturas corporales inadecuadas en trabajadores de oficina,
-basado en visión artificial con redes YOLO-Pose y el Combined Posture Index (CPI),
+basado en visión artificial con redes YOLO-Pose y el **Combined Posture Index (CPI)**,
 un índice multivectorial que integra curvatura escapular y ángulo lumbar.
-
-### Arquitectura
 
 ```
 Webcam → YOLO-Pose (9 keypoints) → CPI (5 keypoints posteriores) → Alertas
@@ -22,6 +20,149 @@ para calcular simultáneamente la curvatura escapular y el déficit angular lumb
 proporcionando una separación 12.7× mayor entre posturas que los enfoques monoangulares.
 
 Documentación completa del modelo matemático: [`MODELO_MATEMATICO_CPI.md`](MODELO_MATEMATICO_CPI.md)
+
+---
+
+## Instalación
+
+### Requisitos del sistema
+
+- Python 3.10 o superior
+- Cámara web funcional
+- (Opcional) GPU NVIDIA con CUDA 12.x para inferencia acelerada
+
+### 1 — Clonar el repositorio
+
+```bash
+git clone https://github.com/FlacoAfk/sistema-monitoreo-postural.git
+cd sistema-monitoreo-postural
+```
+
+### 2 — Crear entorno virtual
+
+```bash
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# Linux / Mac
+source venv/bin/activate
+```
+
+### 3 — Instalar PyTorch
+
+**CPU (cualquier sistema operativo):**
+```bash
+pip install torch==2.11.0 torchvision --index-url https://download.pytorch.org/whl/cpu
+```
+
+**GPU NVIDIA — CUDA 12.6 (recomendado para mejor rendimiento):**
+```bash
+pip install torch==2.11.0+cu126 torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+### 4 — Instalar el resto de dependencias
+
+```bash
+pip install -r posture_monitor/requirements.txt
+```
+
+### 5 — Verificar modelos
+
+Los pesos `.pt` de los 4 modelos deben estar en la raíz del repositorio:
+
+```
+sistema-monitoreo-postural/
+├── yolov8n_pose_b16_lr05/weights/best.pt   ← requerido
+├── yolov5n_pose_b16_lr05/weights/best.pt   ← requerido
+├── yolov26n_pose_b128_lr05/weights/best.pt ← requerido
+├── yolov11n_pose_b16_lr01/weights/best.pt  ← requerido
+└── posture_monitor/
+    └── src/
+        └── app.py
+```
+
+> Los archivos `.pt` están excluidos del repositorio por tamaño (`.gitignore`).
+> Descargalos desde el release o pedíselos al equipo.
+
+Si los pesos están en otra ubicación, definí la variable de entorno antes de correr:
+
+```bash
+# Windows
+set POSTURE_MODELS_DIR=C:\ruta\a\tus\modelos
+
+# Linux / Mac
+export POSTURE_MODELS_DIR=/ruta/a/tus/modelos
+```
+
+---
+
+## Uso
+
+### Dashboard en tiempo real
+
+```bash
+cd posture_monitor/src
+python app.py
+```
+
+Abrí el navegador en **http://127.0.0.1:7860**
+
+#### Funcionalidades del dashboard
+
+| Feature | Descripción |
+|---------|-------------|
+| **Selector de modelo** | Cambio en caliente entre 4 modelos YOLO-Pose |
+| **Gauge CPI** | Anillo SVG animado con valor en tiempo real |
+| **Sparkline** | Historial de CPI de los últimos 60 segundos |
+| **Indicador de confianza** | Barra de progreso + badge de detección débil |
+| **Estado postural** | Card con color reactivo (verde / amarillo / rojo) |
+| **Alertas** | Popup visual + beep sonoro tras 30s de mala postura |
+| **Umbrales configurables** | Sliders para ajustar CPI leve y crítico |
+| **Grabación de sesión** | Exporta CSV con métricas frame a frame |
+| **Idiomas** | Español 🇪🇸 / English 🇬🇧 / Português 🇧🇷 |
+
+### Benchmark de modelos
+
+```bash
+cd posture_monitor/src
+python model_benchmark.py
+```
+
+### Validación de keypoints
+
+```bash
+cd posture_monitor
+python validate_keypoints.py
+```
+
+Genera overlays y JSON en `keypoint_output/`.
+
+---
+
+## Estructura del proyecto
+
+```
+sistema-monitoreo-postural/
+├── posture_monitor/
+│   ├── src/
+│   │   ├── app.py                 # Dashboard Gradio (UI tiempo real)
+│   │   ├── inference_engine.py    # Motor YOLO-Pose (carga, inferencia, webcam)
+│   │   ├── posture_analyzer.py    # CPI — Combined Posture Index (5 keypoints)
+│   │   ├── model_benchmark.py     # Comparador de modelos
+│   │   └── test_system.py         # Tests del sistema
+│   ├── docs/
+│   │   └── INFORME_MODELO_MATEMATICO.md
+│   ├── requirements.txt
+│   ├── README.md
+│   └── MODELO_MATEMATICO_CPI.md
+├── yolov8n_pose_b16_lr05/         # Pesos del modelo (no incluidos en git)
+├── yolov5n_pose_b16_lr05/
+├── yolov26n_pose_b128_lr05/
+├── yolov11n_pose_b16_lr01/
+└── .gitignore
+```
 
 ---
 
@@ -60,9 +201,11 @@ donde:
 | 35–50 | ALERTA LEVE | Curvatura dorsal leve |
 | > 50 | ALERTA CRÍTICA | Cifosis / hombros caídos |
 
+Los umbrales son configurables desde el dashboard sin reiniciar.
+
 ---
 
-## Modelos
+## Modelos evaluados
 
 De 108 submodelos evaluados, 4 seleccionados por score compuesto (mAP50-95 + detección + velocidad):
 
@@ -75,110 +218,29 @@ De 108 submodelos evaluados, 4 seleccionados por score compuesto (mAP50-95 + det
 
 ---
 
-## Instalación
-
-### Requisitos
-- Python 3.10+
-- Cámara web funcional
-- (Opcional) GPU NVIDIA con CUDA
-
-### Pasos
-
-```bash
-cd posture_monitor
-
-# Crear entorno virtual
-python -m venv venv
-venv\Scripts\activate  # Windows
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Verificar modelos en:
-#   ..\Modelos entrenados\yolov8n_pose_b16_lr05\weights\best.pt
-#   ..\Modelos entrenados\yolov5n_pose_b16_lr05\weights\best.pt
-#   ..\Modelos entrenados\yolov26n_pose_b128_lr05\weights\best.pt
-#   ..\Modelos entrenados\yolov11n_pose_b16_lr01\weights\best.pt
-```
-
----
-
-## Uso
-
-### Dashboard en tiempo real
-
-```bash
-cd src
-python app.py
-```
-Abre http://127.0.0.1:7860
-
-- **Selector de modelo**: cambio en caliente entre 4 modelos
-- **Video en vivo**: overlay con esqueleto posterior + líneas del ángulo lumbar + referencia espinal
-- **Panel CPI**: gauge circular + ángulo lumbar + curvatura escapular
-- **Alertas**: sonora (>30s en mala postura, beep cada 5s)
-
-### Benchmark
-
-```bash
-cd src
-python model_benchmark.py
-```
-
-### Validación de keypoints
-
-```bash
-cd posture_monitor
-python validate_keypoints.py
-```
-Genera overlays y JSON en `keypoint_output/`.
-
----
-
-## Estructura del Proyecto
-
-```
-posture_monitor/
-├── src/
-│   ├── inference_engine.py    # Motor YOLO-Pose (carga, inferencia, webcam)
-│   ├── posture_analyzer.py    # CPI — Combined Posture Index (5 keypoints)
-│   ├── app.py                 # Dashboard Gradio (UI tiempo real)
-│   ├── model_benchmark.py     # Comparador de modelos
-│   └── test_system.py         # Tests del sistema
-├── docs/
-│   └── INFORME_MODELO_MATEMATICO.md
-├── keypoint_output/           # Resultados de validación (overlays + JSON)
-├── requirements.txt
-├── README.md
-└── MODELO_MATEMATICO_CPI.md   # Documentación completa del CPI
-```
-
----
-
 ## Componentes
 
-### 1. `inference_engine.py` — Motor de Inferencia
-- Carga modelos YOLO-Pose (.pt) con pipeline asíncrono (hilo captura + hilo inferencia)
+### `inference_engine.py`
+- Carga modelos YOLO-Pose (.pt) con pipeline asíncrono
 - Devuelve `KeypointResult` con 9 keypoints (x, y, confianza)
 - Esqueleto visual: K0→K1→K8→K3→K4 (cadena posterior)
-- NO toma decisiones clasificatorias
 
-### 2. `posture_analyzer.py` — Backend Matemático (CPI)
+### `posture_analyzer.py`
 - Extrae 5 keypoints (K0, K1, K8, K3, K4)
 - Calcula ángulo lumbar `∠K8-K3-K4` + curvatura escapular normalizada
-- CPI = déficit_lumbar × 2 + curvatura% × 100
 - Clasifica: ≤35 CORRECTO, 35–50 ALERTA LEVE, >50 ALERTA CRÍTICA
-- Contador de tiempo acumulado + alertas
+- Contador de tiempo acumulado en mala postura
 
-### 3. `app.py` — Dashboard Interactivo
-- Gradio con streaming de webcam
-- Overlay: esqueleto azul + líneas naranjas del ángulo lumbar + referencia gris K1→K4
-- Gauge CPI con anillo SVG + métricas en tiempo real
-- Selector de modelo en caliente
+### `app.py`
+- Dashboard Gradio con streaming de webcam
+- Panel de métricas estático actualizado por JS (sin flicker)
+- Gauge CPI animado, sparkline, indicador de confianza
+- Soporte i18n ES/EN/PT con dropdown de idioma
+- Exportación de sesión a CSV
 
-### 4. `model_benchmark.py` — Comparador de Modelos
-- Evalúa 4 modelos sobre imágenes de prueba
-- JSON con métricas detalladas + gráfica comparativa
+### `model_benchmark.py`
+- Evalúa los 4 modelos sobre imágenes de prueba
+- Genera JSON con métricas detalladas + gráfica comparativa
 
 ---
 
