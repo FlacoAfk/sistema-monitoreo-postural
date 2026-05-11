@@ -488,7 +488,7 @@ def _build_metrics_json(cpi: float = 0, status: str = "NO DETECTADO",
         "NO DETECTADO":   "#94a3b8",
         "NO INICIADO":    "#94a3b8",
     }
-    return _json.dumps({
+    payload = _json.dumps({
         "cpi": round(cpi, 1),
         "status": status,
         "bad_time": round(bad_time, 1),
@@ -499,6 +499,7 @@ def _build_metrics_json(cpi: float = 0, status: str = "NO DETECTADO",
         "alert": alert,
         "color": palette.get(status, "#94a3b8"),
     })
+    return f'<div id="pm-metrics-data-inner" style="display:none">{payload}</div>'
 
 
 def _compute_summary(session_data: list[dict]) -> Optional[dict]:
@@ -1284,14 +1285,15 @@ def _build_static_metrics_panel() -> str:
     }
   }
 
-  // ── Polling loop: lee el textbox oculto y actualiza el panel ──
+  // ── Polling loop: lee el div oculto y actualiza el panel ──
   setInterval(function() {
-    var container = document.getElementById('pm-metrics-data');
-    if (!container) return;
-    var input = container.querySelector('textarea') || container.querySelector('input[type="text"]');
-    if (!input || !input.value || input.value === '{}') return;
+    var el = document.getElementById('pm-metrics-data-inner');
+    if (!el) return;
+    var raw = el.textContent || el.innerText || '';
+    raw = raw.trim();
+    if (!raw || raw === '{}') return;
     try {
-      var data = JSON.parse(input.value);
+      var data = JSON.parse(raw);
       updateMetrics(data);
     } catch(e) {}
   }, 80);
@@ -1349,11 +1351,10 @@ def build_ui() -> gr.Blocks:
             # ── Columna derecha: Métricas ─────────────────────────────
             with gr.Column(scale=1):
                 metrics_panel = gr.HTML(_build_static_metrics_panel())
-                metrics_data = gr.Textbox(
-                    value='{}',
+                metrics_data = gr.HTML(
+                    value='<div id="pm-metrics-data-inner" style="display:none">{}</div>',
                     elem_id="pm-metrics-data",
                     visible=False,
-                    label="",
                 )
 
                 gr.HTML('<div class="pm-sidebar-title">Umbrales CPI</div>')
