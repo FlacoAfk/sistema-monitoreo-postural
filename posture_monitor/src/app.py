@@ -1073,6 +1073,149 @@ def _update_thresholds(leve: float, critico: float) -> tuple[str, str]:
     )
 
 
+METRICS_JS = """
+() => {
+  var CIRC = 326.73;
+  var prevStatus = '';
+  var alertTimer = null;
+
+  function animateValue(el, newText) {
+    if (!el || el.textContent === newText) return;
+    el.style.transition = 'opacity 0.15s ease';
+    el.style.opacity = '0.2';
+    setTimeout(function() {
+      el.textContent = newText;
+      el.style.opacity = '1';
+    }, 150);
+  }
+
+  function drawSparkline(history) {
+    if (!history || history.length < 2) return;
+    var W = 280, H = 64, MAX = 100;
+    var n = history.length;
+    var pts = history.map(function(v, i) {
+      return [i / (n - 1) * W, H - (Math.min(Math.max(v, 0), MAX) / MAX) * (H - 4) - 2];
+    });
+    var d = pts.map(function(p, i) {
+      return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1);
+    }).join(' ');
+    var lineEl = document.getElementById('spark-line');
+    if (lineEl) lineEl.setAttribute('d', d);
+    var area = d + ' L' + pts[pts.length-1][0].toFixed(1) + ',' + H + ' L0,' + H + ' Z';
+    var areaEl = document.getElementById('spark-area');
+    if (areaEl) areaEl.setAttribute('d', area);
+    var last = pts[pts.length - 1];
+    var dotEl = document.getElementById('spark-dot');
+    if (dotEl) { dotEl.setAttribute('cx', last[0].toFixed(1)); dotEl.setAttribute('cy', last[1].toFixed(1)); }
+  }
+
+  function updateMetrics(data) {
+    var cpi     = data.cpi     !== undefined ? data.cpi     : 0;
+    var status  = data.status  || 'NO DETECTADO';
+    var badTime = data.bad_time !== undefined ? data.bad_time : 0;
+    var lumbar  = data.lumbar  !== undefined ? data.lumbar  : 0;
+    var curv    = data.curv    !== undefined ? data.curv    : 0;
+    var fps     = data.fps     !== undefined ? data.fps     : 0;
+    var conf    = data.conf    !== undefined ? data.conf    : 0;
+    var alert   = data.alert   || false;
+    var color   = data.color   || '#94a3b8';
+    var history = data.history || [];
+
+    // Gauge arc
+    var pct = Math.min(Math.max(cpi, 0), 100) / 100;
+    var offset = CIRC - CIRC * pct;
+    var arc = document.getElementById('pm-gauge-arc');
+    if (arc) { arc.style.strokeDashoffset = offset; arc.style.stroke = color; }
+
+    // Gauge number
+    var num = document.getElementById('pm-gauge-num');
+    if (num) { animateValue(num, cpi.toFixed(1)); num.style.color = color; }
+
+    // Badge
+    var badgeEl = document.getElementById('pm-badge');
+    var badgeMap = {
+      'CORRECTO':       ['badge-ok',   'CORRECTO'],
+      'ALERTA LEVE':    ['badge-warn', 'ALERTA LEVE'],
+      'ALERTA CRÍTICA': ['badge-crit', 'ALERTA CRÍTICA'],
+      'NO DETECTADO':   ['badge-nd',   'NO DETECTADO'],
+      'NO INICIADO':    ['badge-nd',   'NO INICIADO'],
+    };
+    if (badgeEl) {
+      var b = badgeMap[status] || ['badge-nd', status];
+      if (badgeEl.textContent !== b[1]) { badgeEl.className = 'pm-badge ' + b[0]; badgeEl.textContent = b[1]; }
+    }
+
+    // Metrics text
+    animateValue(document.getElementById('pm-lumbar'),   lumbar.toFixed(0) + '°');
+    animateValue(document.getElementById('pm-curv'),     curv.toFixed(1) + '%');
+    animateValue(document.getElementById('pm-bad-time'), badTime.toFixed(0) + 's');
+    animateValue(document.getElementById('pm-fps-val'),  fps.toFixed(0) + ' fps');
+
+    // Confidence
+    var confPct = Math.round(conf * 100);
+    var confColor = conf >= 0.7 ? '#22c55e' : conf >= 0.4 ? '#f59e0b' : '#ef4444';
+    var confBar = document.getElementById('pm-conf-bar');
+    var confVal = document.getElementById('pm-conf-val');
+    var confBadge = document.getElementById('pm-conf-badge');
+    if (confBar) { confBar.style.width = confPct + '%'; confBar.style.background = confColor; confBar.style.transition = 'width 0.3s ease, background 0.3s ease'; }
+    if (confVal) { animateValue(confVal, confPct + '%'); confVal.style.color = confColor; }
+    if (confBadge) confBadge.style.display = conf < 0.4 ? 'inline-block' : 'none';
+
+    // Status card — solo cambiar si el status cambió
+    var card = document.getElementById('pm-status-card');
+    var iconEl = document.getElementById('pm-status-icon');
+    var detailEl = document.getElementById('pm-status-detail');
+    if (card && prevStatus !== status) {
+      var clsMap = {
+        'CORRECTO':       'pm-status pm-status-ok',
+        'ALERTA LEVE':    'pm-status pm-status-warn',
+        'ALERTA CRÍTICA': 'pm-status pm-status-crit',
+        'NO DETECTADO':   'pm-status pm-status-nd',
+        'NO INICIADO':    'pm-status pm-status-nd',
+      };
+      card.className = (clsMap[status] || 'pm-status pm-status-nd') + (alert ? ' pulse' : '');
+      prevStatus = status;
+    }
+    if (iconEl) {
+      var icons = { 'CORRECTO': '✓ POSTURA CORRECTA', 'ALERTA LEVE': '⚠ ALERTA LEVE', 'ALERTA CRÍTICA': '✕ ALERTA CRÍTICA', 'NO DETECTADO': '— NO DETECTADO', 'NO INICIADO': '— NO INICIADO' };
+      iconEl.textContent = icons[status] || status;
+    }
+    if (detailEl) {
+      if (status === 'CORRECTO') detailEl.textContent = 'Alineación cervical dentro de parámetros ergonómicos';
+      else if (status === 'ALERTA LEVE') detailEl.textContent = 'Cabeza ligeramente adelantada · ' + badTime.toFixed(0) + 's acumulados';
+      else if (status === 'ALERTA CRÍTICA') detailEl.textContent = 'Protrusión cefálica severa · ' + badTime.toFixed(0) + 's acumulados';
+      else detailEl.textContent = 'Colóquese frente a la cámara para iniciar';
+    }
+
+    // Alert popup
+    var popup = document.getElementById('pm-alert-popup');
+    if (popup && alert) {
+      var t = document.getElementById('pm-alert-title');
+      if (t) t.textContent = '⚠ Mala postura: ' + badTime.toFixed(0) + 's';
+      popup.style.display = 'block'; popup.style.opacity = '1';
+      clearTimeout(alertTimer);
+      alertTimer = setTimeout(function() {
+        popup.style.opacity = '0';
+        setTimeout(function() { popup.style.display = 'none'; }, 400);
+      }, 4000);
+    }
+
+    // Sparkline
+    drawSparkline(history);
+  }
+
+  // Polling loop — lee el div carrier cada 100ms
+  setInterval(function() {
+    var el = document.getElementById('pm-metrics-data-inner');
+    if (!el) return;
+    var raw = (el.textContent || el.innerText || '').trim();
+    if (!raw || raw === '{}') return;
+    try { updateMetrics(JSON.parse(raw)); } catch(e) {}
+  }, 100);
+}
+"""
+
+
 # ── Construir UI ─────────────────────────────────────────────────────────────
 def _build_sparkline_html(history: list[tuple[float, float]]) -> str:
     """Genera SVG sparkline de CPI (últimos 60s)."""
@@ -1120,271 +1263,161 @@ def _build_sparkline_html(history: list[tuple[float, float]]) -> str:
 
 
 def _build_static_metrics_panel() -> str:
-    """Panel de métricas estático — se renderiza UNA VEZ, nunca se actualiza desde Python."""
+    """Panel de métricas estático — se renderiza UNA VEZ. Sin scripts (Gradio 6 los elimina).
+    El JS se inyecta via app.load(js=METRICS_JS)."""
     return """
+<style>
+  #pm-metrics-root { font-family: 'Inter', sans-serif; color: #e2e8f0; }
+
+  .pm-card {
+    background: rgba(15,23,42,0.7);
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+
+  .pm-section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #6366f1;
+    margin-bottom: 10px;
+  }
+
+  /* Gauge */
+  .pm-gauge-wrap { position: relative; width: 140px; height: 140px; margin: 0 auto 8px; }
+  .pm-gauge-track { fill: none; stroke: rgba(99,102,241,0.15); stroke-width: 10; }
+  .pm-gauge-fill  { fill: none; stroke-width: 10; stroke-linecap: round;
+    transform: rotate(-90deg); transform-origin: 50% 50%;
+    stroke-dasharray: 326.73; stroke-dashoffset: 326.73;
+    transition: stroke-dashoffset 0.5s ease, stroke 0.4s ease; }
+  .pm-gauge-value {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 28px; font-weight: 800; transition: color 0.4s ease;
+  }
+  .pm-gauge-label { text-align: center; font-size: 10px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Badges */
+  .pm-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
+  .badge-ok   { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+  .badge-warn { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+  .badge-crit { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+  .badge-nd   { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+
+  /* Metrics grid */
+  .pm-metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .pm-metric-item { background: rgba(99,102,241,0.06); border-radius: 8px; padding: 8px 10px; }
+  .pm-metric-item .label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .pm-metric-item .value { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+
+  /* Confidence bar */
+  .pm-conf-track { background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden; margin: 6px 0 4px; }
+  .pm-conf-fill  { height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s ease, background 0.3s ease; }
+
+  /* Status card */
+  .pm-status {
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+    border: 1px solid transparent; transition: background 0.4s ease, border-color 0.4s ease;
+  }
+  .pm-status-nd   { background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.2); }
+  .pm-status-ok   { background: rgba(34,197,94,0.08);   border-color: rgba(34,197,94,0.3); }
+  .pm-status-warn { background: rgba(245,158,11,0.08);  border-color: rgba(245,158,11,0.3); }
+  .pm-status-crit { background: rgba(239,68,68,0.08);   border-color: rgba(239,68,68,0.3); }
+  .pm-status.pulse { animation: pm-pulse 1.8s ease-in-out infinite; }
+  @keyframes pm-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0.2); } }
+  .pm-status-icon   { font-size: 13px; font-weight: 700; }
+  .pm-status-detail { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+  /* Sparkline */
+  #pm-sparkline-svg { display: block; width: 100%; }
+
+  /* Alert popup */
+  #pm-alert-popup {
+    display: none; opacity: 0;
+    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    background: rgba(239,68,68,0.95); color: #fff;
+    border-radius: 10px; padding: 12px 18px;
+    font-size: 13px; font-weight: 700;
+    box-shadow: 0 8px 32px rgba(239,68,68,0.4);
+    transition: opacity 0.3s ease;
+  }
+</style>
+
 <div id="pm-metrics-root">
 
-  <!-- ── GAUGE CPI ── -->
-  <div class="pm-card" style="text-align:center;margin-bottom:12px">
+  <!-- ── GAUGE + ESTADO ── -->
+  <div class="pm-card">
+    <div class="pm-section-title">CPI — Combined Posture Index</div>
     <div class="pm-gauge-wrap">
-      <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle class="pm-gauge-track" cx="80" cy="80" r="52"/>
-        <circle class="pm-gauge-fill" cx="80" cy="80" r="52" id="pm-gauge-arc"
-          stroke="#94a3b8"
-          stroke-dasharray="326.73"
-          stroke-dashoffset="326.73"/>
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle class="pm-gauge-track" cx="70" cy="70" r="52"/>
+        <circle class="pm-gauge-fill" id="pm-gauge-arc" cx="70" cy="70" r="52" stroke="#94a3b8"/>
       </svg>
       <div class="pm-gauge-value" id="pm-gauge-num" style="color:#94a3b8">0.0</div>
     </div>
-    <div class="pm-metric-label">CPI — Combined Posture Index</div>
-    <div class="pm-metric-sub">
+    <div class="pm-gauge-label">
       <span class="pm-badge badge-nd" id="pm-badge">NO INICIADO</span>
-      &nbsp;|&nbsp; Lumbar: <strong id="pm-lumbar">0°</strong>
-      &nbsp;|&nbsp; Curv: <strong id="pm-curv">0.0%</strong>
-      &nbsp;|&nbsp; Acum: <strong id="pm-bad-time">0s</strong>
-      &nbsp;|&nbsp; <span style="color:var(--pm-cyan);font-weight:700" id="pm-fps-val">0 fps</span>
     </div>
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--pm-border)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;color:var(--pm-text-3);text-transform:uppercase;letter-spacing:1px">Confianza detección</span>
-        <span id="pm-conf-val" style="font-size:11px;font-weight:700;color:var(--pm-text-2)">0%</span>
+
+    <div class="pm-metrics-grid" style="margin-top:12px">
+      <div class="pm-metric-item">
+        <div class="label">Lumbar</div>
+        <div class="value" id="pm-lumbar">0°</div>
       </div>
-      <div class="pm-conf-bar-wrap">
-        <div class="pm-conf-bar" id="pm-conf-bar" style="width:0%;background:#ef4444"></div>
+      <div class="pm-metric-item">
+        <div class="label">Curvatura</div>
+        <div class="value" id="pm-curv">0.0%</div>
       </div>
-      <span id="pm-conf-badge" style="display:none;font-size:10px;font-weight:700;color:#ef4444;margin-top:4px">⚠ Detección débil</span>
+      <div class="pm-metric-item">
+        <div class="label">Mala postura</div>
+        <div class="value" id="pm-bad-time">0s</div>
+      </div>
+      <div class="pm-metric-item">
+        <div class="label">FPS</div>
+        <div class="value" id="pm-fps-val" style="color:#6366f1">0</div>
+      </div>
     </div>
   </div>
 
-  <!-- ── STATUS PANEL ── -->
-  <div class="pm-status pm-status-nd" id="pm-status-card"
-    onmousemove="this.style.setProperty('--rx',event.offsetX+'px');this.style.setProperty('--ry',event.offsetY+'px')">
-    <div style="font-size:15px;font-weight:700;position:relative;z-index:2" id="pm-status-icon">NO INICIADO</div>
-    <div style="font-size:12px;margin-top:8px;opacity:.88;position:relative;z-index:2" id="pm-status-detail">Coloquese frente a la camara para iniciar el monitoreo</div>
+  <!-- ── ESTADO POSTURAL ── -->
+  <div class="pm-status pm-status-nd" id="pm-status-card">
+    <div class="pm-status-icon" id="pm-status-icon">— NO INICIADO</div>
+    <div class="pm-status-detail" id="pm-status-detail">Colóquese frente a la cámara para iniciar</div>
   </div>
 
-  <!-- ── SPARKLINE CPI ── -->
-  <div class="pm-card" style="margin-top:12px">
-    <div style="font-size:10px;color:var(--pm-text-3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">CPI — Últimos 60 segundos</div>
-    <svg id="pm-sparkline-svg" width="100%" height="64" viewBox="0 0 280 64" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#6366f1" stop-opacity="0.4"/>
-          <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <!-- zona leve -->
-      <rect id="spark-zone-leve" x="0" y="0" width="280" height="64" fill="#f59e0b" opacity="0.06"/>
-      <!-- zona critica -->
-      <rect id="spark-zone-crit" x="0" y="0" width="280" height="64" fill="#ef4444" opacity="0.06"/>
-      <path id="spark-area" fill="url(#spark-grad)" d=""/>
-      <path id="spark-line" fill="none" stroke="#6366f1" stroke-width="1.5" d=""/>
-      <circle id="spark-dot" r="3" fill="#6366f1" cx="280" cy="32"/>
+  <!-- ── CONFIANZA ── -->
+  <div class="pm-card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="pm-section-title" style="margin-bottom:0">Confianza detección</span>
+      <span id="pm-conf-val" style="font-size:12px;font-weight:700;color:#94a3b8">0%</span>
+    </div>
+    <div class="pm-conf-track">
+      <div class="pm-conf-fill" id="pm-conf-bar"></div>
+    </div>
+    <span id="pm-conf-badge" style="display:none;font-size:10px;font-weight:700;color:#ef4444">⚠ Detección débil — datos no confiables</span>
+  </div>
+
+  <!-- ── SPARKLINE ── -->
+  <div class="pm-card">
+    <div class="pm-section-title">Historial CPI — últimos 60s</div>
+    <svg id="pm-sparkline-svg" height="56" viewBox="0 0 280 56" preserveAspectRatio="none">
+      <rect x="0" y="0" width="280" height="56" fill="rgba(99,102,241,0.03)" rx="4"/>
+      <path id="spark-area" fill="rgba(99,102,241,0.12)" d=""/>
+      <path id="spark-line" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-linejoin="round" d=""/>
+      <circle id="spark-dot" r="3.5" fill="#6366f1" cx="280" cy="28"/>
     </svg>
-    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--pm-text-3);margin-top:4px">
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#475569;margin-top:3px">
       <span>60s atrás</span><span>ahora</span>
     </div>
   </div>
 
 </div>
 
-<div id="pm-alert-popup" class="pm-alert-popup" style="display:none">
-  <h3 id="pm-alert-title">⚠ ALERTA</h3>
-  <p id="pm-alert-body">Corrija su posicion</p>
+<div id="pm-alert-popup">
+  <div id="pm-alert-title">⚠ Alerta postural</div>
 </div>
-
-<script>
-(function() {
-  var CIRC = 326.73;
-  var prevStatus = '';
-  var alertTimer = null;
-  var prevValues = {};
-
-  function animateValue(el, newText) {
-    if (!el || el.textContent === newText) return;
-    el.style.transition = 'opacity 0.12s ease';
-    el.style.opacity = '0.2';
-    setTimeout(function() {
-      el.textContent = newText;
-      el.style.opacity = '1';
-    }, 120);
-  }
-
-  function drawSparkline(history, cpiBands) {
-    if (!history || history.length < 2) return;
-    var svg = document.getElementById('pm-sparkline-svg');
-    if (!svg) return;
-    var W = 280, H = 64, MAX = 100;
-    var n = history.length;
-    var pts = history.map(function(v, i) {
-      return [i / (n - 1) * W, H - (Math.min(Math.max(v, 0), MAX) / MAX) * H];
-    });
-
-    // Zonas
-    var leve = cpiBands ? cpiBands.leve : 35;
-    var crit = cpiBands ? cpiBands.crit : 50;
-    var yLeve = H - (leve / MAX) * H;
-    var yCrit = H - (crit / MAX) * H;
-    var zoneLeveEl = document.getElementById('spark-zone-leve');
-    var zoneCritEl = document.getElementById('spark-zone-crit');
-    if (zoneLeveEl) { zoneLeveEl.setAttribute('y', String(yCrit)); zoneLeveEl.setAttribute('height', String(yLeve - yCrit)); }
-    if (zoneCritEl) { zoneCritEl.setAttribute('y', '0'); zoneCritEl.setAttribute('height', String(yCrit)); }
-
-    // Line path
-    var d = pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
-    var lineEl = document.getElementById('spark-line');
-    if (lineEl) lineEl.setAttribute('d', d);
-
-    // Area path (close to bottom)
-    var area = d + ' L' + pts[pts.length-1][0].toFixed(1) + ',' + H + ' L0,' + H + ' Z';
-    var areaEl = document.getElementById('spark-area');
-    if (areaEl) areaEl.setAttribute('d', area);
-
-    // Live dot
-    var last = pts[pts.length - 1];
-    var dotEl = document.getElementById('spark-dot');
-    if (dotEl) { dotEl.setAttribute('cx', last[0].toFixed(1)); dotEl.setAttribute('cy', last[1].toFixed(1)); }
-  }
-
-  function updateMetrics(data) {
-    var cpi     = data.cpi || 0;
-    var status  = data.status || 'NO DETECTADO';
-    var badTime = data.bad_time || 0;
-    var lumbar  = data.lumbar || 0;
-    var curv    = data.curv || 0;
-    var fps     = data.fps || 0;
-    var conf    = data.conf || 0;
-    var alert   = data.alert || false;
-    var color   = data.color || '#94a3b8';
-    var history = data.history || [];
-
-    // ── Gauge ──
-    var pct = Math.min(Math.max(cpi, 0), 100) / 100;
-    var targetOffset = CIRC - CIRC * pct;
-    var arc = document.getElementById('pm-gauge-arc');
-    var num = document.getElementById('pm-gauge-num');
-    if (arc) {
-      arc.setAttribute('stroke-dashoffset', String(targetOffset));
-      arc.setAttribute('stroke', color);
-    }
-    if (num) {
-      var newCpiText = cpi.toFixed(1);
-      if (num.textContent !== newCpiText) {
-        num.style.transition = 'color 0.3s ease, opacity 0.15s ease';
-        num.style.color = color;
-        animateValue(num, newCpiText);
-      }
-    }
-
-    // ── Textos con animación suave ──
-    var badgeEl   = document.getElementById('pm-badge');
-    var lumbarEl  = document.getElementById('pm-lumbar');
-    var curvEl    = document.getElementById('pm-curv');
-    var badTimeEl = document.getElementById('pm-bad-time');
-    var fpsEl     = document.getElementById('pm-fps-val');
-
-    var badgeMap = {
-      'CORRECTO': ['badge-ok', 'CORRECTO'],
-      'ALERTA LEVE': ['badge-warn', 'ALERTA LEVE'],
-      'ALERTA CRÍTICA': ['badge-crit', 'ALERTA CRÍTICA'],
-      'NO DETECTADO': ['badge-nd', 'NO DETECTADO'],
-      'NO INICIADO': ['badge-nd', 'NO INICIADO'],
-    };
-    if (badgeEl) {
-      var bInfo = badgeMap[status] || ['badge-nd', status];
-      if (badgeEl.textContent !== bInfo[1]) {
-        badgeEl.className = 'pm-badge ' + bInfo[0];
-        badgeEl.textContent = bInfo[1];
-      }
-    }
-    animateValue(lumbarEl,  lumbar.toFixed(0) + '°');
-    animateValue(curvEl,    curv.toFixed(1) + '%');
-    animateValue(badTimeEl, badTime.toFixed(0) + 's');
-    animateValue(fpsEl,     fps.toFixed(0) + ' fps');
-
-    // ── Confidence bar ──
-    var confPct = (conf * 100).toFixed(0);
-    var confColor = conf >= 0.7 ? '#22c55e' : conf >= 0.4 ? '#f59e0b' : '#ef4444';
-    var confBar   = document.getElementById('pm-conf-bar');
-    var confVal   = document.getElementById('pm-conf-val');
-    var confBadge = document.getElementById('pm-conf-badge');
-    if (confBar)   { confBar.style.width = confPct + '%'; confBar.style.background = confColor; }
-    if (confVal)   { animateValue(confVal, confPct + '%'); confVal.style.color = confColor; }
-    if (confBadge) { confBadge.style.display = conf < 0.4 ? 'inline-block' : 'none'; }
-
-    // ── Status card — solo cambiar clase si el status cambió ──
-    var card = document.getElementById('pm-status-card');
-    var iconEl   = document.getElementById('pm-status-icon');
-    var detailEl = document.getElementById('pm-status-detail');
-    if (card) {
-      var clsMap = {
-        'CORRECTO': 'pm-status pm-status-ok',
-        'ALERTA LEVE': 'pm-status pm-status-warn',
-        'ALERTA CRÍTICA': 'pm-status pm-status-crit',
-        'NO DETECTADO': 'pm-status pm-status-nd',
-        'NO INICIADO': 'pm-status pm-status-nd',
-      };
-      var newCls = (clsMap[status] || 'pm-status pm-status-nd');
-      if (alert && status === 'ALERTA CRÍTICA') newCls += ' pulse';
-      if (prevStatus !== status || window._pmPrevAlert !== alert) {
-        card.className = newCls;
-        prevStatus = status;
-        window._pmPrevAlert = alert;
-      }
-    }
-    if (iconEl && detailEl) {
-      if (alert) {
-        iconEl.innerHTML = '<span class="pm-live-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444"></span>ALERTA CRÍTICA';
-        detailEl.textContent = 'Mala postura acumulada: ' + badTime.toFixed(0) + 's · Corrija la posición de su cabeza';
-      } else if (status === 'ALERTA CRÍTICA') {
-        iconEl.textContent = 'ALERTA CRÍTICA';
-        detailEl.textContent = 'Protrusión cefálica severa detectada · ' + badTime.toFixed(0) + 's acumulados';
-      } else if (status === 'ALERTA LEVE') {
-        iconEl.textContent = 'ALERTA LEVE';
-        detailEl.textContent = 'Cabeza ligeramente adelantada · ' + badTime.toFixed(0) + 's acumulados';
-      } else if (status === 'NO DETECTADO' || status === 'NO INICIADO') {
-        iconEl.textContent = status;
-        detailEl.textContent = 'Coloquese frente a la camara para iniciar el monitoreo';
-      } else {
-        iconEl.innerHTML = '<span class="pm-live-dot"></span>POSTURA CORRECTA';
-        detailEl.textContent = 'Alineación cervical dentro de parámetros ergonómicos';
-      }
-    }
-
-    // ── Alert popup ──
-    var popup = document.getElementById('pm-alert-popup');
-    if (popup) {
-      if (alert) {
-        var titleEl = document.getElementById('pm-alert-title');
-        if (titleEl) titleEl.textContent = '⚠ ALERTA: Mala postura ' + badTime.toFixed(0) + 's';
-        popup.className = 'pm-alert-popup';
-        popup.style.display = 'block';
-        clearTimeout(alertTimer);
-        alertTimer = setTimeout(function() {
-          popup.className = 'pm-alert-popup fade-out';
-          setTimeout(function() { popup.style.display = 'none'; }, 400);
-        }, 4000);
-      }
-    }
-
-    // ── Sparkline ──
-    drawSparkline(history, null);
-  }
-
-  // ── Polling loop: lee el div oculto y actualiza el panel ──
-  setInterval(function() {
-    var el = document.getElementById('pm-metrics-data-inner');
-    if (!el) return;
-    var raw = el.textContent || el.innerText || '';
-    raw = raw.trim();
-    if (!raw || raw === '{}') return;
-    try {
-      var data = JSON.parse(raw);
-      updateMetrics(data);
-    } catch(e) {}
-  }, 80);
-})();
-</script>
 """
 
 
@@ -1434,66 +1467,49 @@ def build_ui() -> gr.Blocks:
                     "**Modelo actual:** YOLOv8n — Mas rapido (22ms, SCORE 0.9189)"
                 )
 
-            # ── Columna derecha: Métricas ─────────────────────────────
+            # ── Columna derecha: Métricas + controles ─────────────────
             with gr.Column(scale=1):
                 metrics_panel = gr.HTML(_build_static_metrics_panel())
-                # Carrier oculto: el div interno tiene display:none
-                # NO usar visible=False — Gradio puede omitir el DOM cuando está oculto
                 metrics_data = gr.HTML(
                     value='<div id="pm-metrics-data-inner" style="display:none">{}</div>',
                     elem_id="pm-metrics-data",
                 )
 
-                gr.HTML('<div class="pm-sidebar-title">Umbrales CPI</div>')
-                threshold_table = gr.HTML(_build_threshold_table())
-                gr.HTML('<div class="pm-sidebar-title">Calibrar Umbrales</div>')
-                leve_slider = gr.Slider(
-                    minimum=10, maximum=80, value=35, step=1,
-                    label="Umbral Leve (CPI)", interactive=True
-                )
-                critico_slider = gr.Slider(
-                    minimum=20, maximum=100, value=50, step=1,
-                    label="Umbral Crítico (CPI)", interactive=True
-                )
-                threshold_msg = gr.Markdown("_Ajusta los sliders para calibrar los umbrales_")
+                with gr.Accordion("Calibrar umbrales CPI", open=False):
+                    threshold_table = gr.HTML(_build_threshold_table())
+                    leve_slider = gr.Slider(
+                        minimum=10, maximum=80, value=35, step=1,
+                        label="Umbral Leve", interactive=True
+                    )
+                    critico_slider = gr.Slider(
+                        minimum=20, maximum=100, value=50, step=1,
+                        label="Umbral Crítico", interactive=True
+                    )
+                    threshold_msg = gr.Markdown("_Ajusta los sliders para calibrar_")
 
-                gr.HTML('<div class="pm-sidebar-title">Keypoints del CPI (5 pts)</div>')
-                gr.HTML("""
-                <ul class="pm-kp-list">
-                    <li><strong>K0</strong> — Head-back / Occipital</li>
-                    <li><strong>K1</strong> — C7 / Neck-back</li>
-                    <li><strong>K8</strong> — Shoulder-back / Escapula</li>
-                    <li><strong>K3</strong> — Back-backedge / Espalda media</li>
-                    <li><strong>K4</strong> — Hips-backedge / Cadera</li>
-                </ul>
-                """)
-
-                gr.HTML('<div class="pm-sidebar-title">Mapa de Keypoints (9 pts)</div>')
-                gr.HTML("""
-                    <table class="pm-table">
-                    <tr><th>ID</th><th>Nombre</th><th>Ubicacion</th></tr>
-                    <tr><td><strong>K0</strong></td><td>Head-back</td><td>Occipital</td></tr>
-                    <tr><td><strong>K1</strong></td><td>Neck-back</td><td>C7 cervical</td></tr>
-                    <tr><td><strong>K2</strong></td><td>Shoulder-top</td><td>Acromion</td></tr>
-                    <tr><td><strong>K3</strong></td><td>Back-borde</td><td>Espalda media</td></tr>
-                    <tr><td><strong>K4</strong></td><td>Hips-backedge</td><td>Cadera</td></tr>
-                    <tr><td><strong>K5</strong></td><td>Neck-middle</td><td>Cervical media</td></tr>
-                    <tr><td><strong>K6</strong></td><td>Jaw</td><td>Mandibula</td></tr>
-                    <tr><td><strong>K7</strong></td><td>Chin</td><td>Menton</td></tr>
-                    <tr><td><strong>K8</strong></td><td>Shoulder-back</td><td>Escapula</td></tr>
+                with gr.Accordion("Referencia de keypoints", open=False):
+                    gr.HTML("""
+                    <table style="width:100%;font-size:11px;border-collapse:collapse">
+                      <tr style="color:#6366f1"><th style="padding:4px 6px;text-align:left">ID</th><th style="padding:4px 6px;text-align:left">Nombre</th><th style="padding:4px 6px;text-align:left">Ubicación</th></tr>
+                      <tr><td style="padding:3px 6px"><b>K0</b></td><td>Head-back</td><td>Occipital</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K1</b></td><td>Neck-back</td><td>C7 cervical</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K2</b></td><td>Shoulder-top</td><td>Acromion</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K3</b></td><td>Back-borde</td><td>Espalda media</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K4</b></td><td>Hips-backedge</td><td>Cadera</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K5</b></td><td>Neck-middle</td><td>Cervical media</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K6</b></td><td>Jaw</td><td>Mandíbula</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K7</b></td><td>Chin</td><td>Mentón</td></tr>
+                      <tr><td style="padding:3px 6px"><b>K8</b></td><td>Shoulder-back</td><td>Escápula</td></tr>
                     </table>
-                """)
+                    """)
 
-                gr.HTML('<div class="pm-sidebar-title">Alerta Sonora</div>')
-                gr.HTML('<div class="pm-note">Se emite un beep cada 5 s cuando la mala postura supera 30 s de acumulación continua.</div>')
-
-                gr.HTML('<div class="pm-sidebar-title">Grabación de Sesión</div>')
-                session_btn = gr.Button("▶ Iniciar sesión", variant="primary", size="sm")
-                session_status = gr.Markdown("_Sin sesión activa_")
-                export_btn = gr.Button("⬇ Exportar CSV", variant="secondary", size="sm", visible=False)
-                export_file = gr.File(label="Archivo CSV", visible=False, interactive=False)
-                export_msg = gr.Markdown("")
-                summary_display = gr.HTML("", visible=False)
+                with gr.Accordion("Grabación de sesión", open=True):
+                    session_btn = gr.Button("▶ Iniciar sesión", variant="primary", size="sm")
+                    session_status = gr.Markdown("_Sin sesión activa_")
+                    export_btn = gr.Button("⬇ Exportar CSV", variant="secondary", size="sm", visible=False)
+                    export_file = gr.File(label="Archivo CSV", visible=False, interactive=False)
+                    export_msg = gr.Markdown("")
+                    summary_display = gr.HTML("", visible=False)
 
         # ── Evento streaming: cada frame de webcam → procesar ─────────
         webcam.stream(
@@ -1532,6 +1548,10 @@ def build_ui() -> gr.Blocks:
             inputs=[leve_slider, critico_slider],
             outputs=[threshold_table, threshold_msg],
         )
+
+        # Inyectar JS de métricas — Gradio 6 elimina <script> en gr.HTML,
+        # app.load(js=...) es la única forma confiable de ejecutar JS al cargar
+        app.load(fn=None, js=METRICS_JS)
 
         return app
 
