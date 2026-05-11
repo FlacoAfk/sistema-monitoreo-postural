@@ -1351,10 +1351,11 @@ def build_ui() -> gr.Blocks:
             # ── Columna derecha: Métricas ─────────────────────────────
             with gr.Column(scale=1):
                 metrics_panel = gr.HTML(_build_static_metrics_panel())
+                # Carrier oculto: el div interno tiene display:none
+                # NO usar visible=False — Gradio puede omitir el DOM cuando está oculto
                 metrics_data = gr.HTML(
                     value='<div id="pm-metrics-data-inner" style="display:none">{}</div>',
                     elem_id="pm-metrics-data",
-                    visible=False,
                 )
 
                 gr.HTML('<div class="pm-sidebar-title">Umbrales CPI</div>')
