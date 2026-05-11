@@ -76,6 +76,9 @@ MODEL_CONFIGS = [
 # Lookup rápido O(1) para evitar loop cada frame
 MODEL_LOOKUP: dict[str, dict[str, str]] = {c["name"]: c for c in MODEL_CONFIGS}
 
+# Skip ratio: process every Nth frame through YOLO, skip remaining
+SKIP_RATIO = 2
+
 # ── Estado global ────────────────────────────────────────────────────────────
 class AppState:
     """Estado persistente de la aplicación (entre frames)."""
@@ -95,6 +98,9 @@ class AppState:
         self._last_status: str = ""
         self._last_bad_time: float = -1.0
         self._last_alert: bool = False
+        self._skip_counter: int = 0
+        self._last_overlay_bgr: Optional[np.ndarray] = None
+        self._last_posture_result: Optional[tuple] = None
 
     def load_model(self, model_path: str) -> None:
         """Carga o recarga el modelo YOLO en GPU/CPU."""
@@ -143,6 +149,59 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     except Exception as e:
         return frame, _build_metrics_html(0, f"ERROR: {e}", 0), _build_status_html("ERROR", 0, False)
 
+    # ── Frame skipping: skip every Nth frame (save YOLO inference) ────
+    state._skip_counter += 1
+    if state._skip_counter % SKIP_RATIO != 0 and state._last_overlay_bgr is not None:
+        # Skip path: reuse overlay from last inference frame
+        out = state._last_overlay_bgr.copy()
+        h, w = out.shape[:2]
+        cpi_s, stat_s, lumbar_s, curv_s, bad_s, alert_s = state._last_posture_result or (0, "NO DETECTADO", 0, 0, 0, False)
+
+        # Banner inferior con estado + FPS (igual que inference path)
+        status_colors_bgr_skip = {
+            PostureStatus.CORRECTO: (0, 200, 0),
+            PostureStatus.ALERTA_LEVE: (0, 215, 255),
+            PostureStatus.ALERTA_CRITICA: (0, 0, 255),
+            PostureStatus.NO_DETECTADO: (128, 128, 128),
+        }
+        # Map stat_s string back to PostureStatus for color lookup
+        skip_status = PostureStatus.NO_DETECTADO
+        for ps in PostureStatus:
+            if ps.value == stat_s:
+                skip_status = ps
+                break
+        banner_color = status_colors_bgr_skip.get(skip_status, (128, 128, 128))
+
+        roi = out[h - 45:h, 0:w]
+        np.multiply(roi, 0.55, out=roi, casting='unsafe')
+
+        # Status text (same format as inference path)
+        fps_str = f"FPS: {state._current_fps:.0f}" if state._current_fps > 0 else ""
+        status_text = f"Estado: {stat_s}"
+        if cpi_s > 0:
+            status_text += f" | CPI: {cpi_s:.0f} (L:{lumbar_s:.0f}° C:{curv_s:.1f}%)"
+        if bad_s > 0:
+            status_text += f" | Mala postura: {bad_s:.0f}s"
+
+        cv2.putText(out, status_text, (10, h - 15),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, banner_color, 2, cv2.LINE_AA)
+        if fps_str:
+            (tw, _), _ = cv2.getTextSize(fps_str, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.putText(out, fps_str, (w - tw - 10, h - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
+
+        out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
+
+        # FPS tracking: include skip frames for accurate display rate
+        state._fps_times.append(time.time())
+        if len(state._fps_times) > 30:
+            state._fps_times.pop(0)
+        if len(state._fps_times) >= 2:
+            elapsed = state._fps_times[-1] - state._fps_times[0]
+            state._current_fps = (len(state._fps_times) - 1) / elapsed if elapsed > 0 else 0
+
+        return out_rgb, _build_metrics_html(cpi_s, stat_s, bad_s, cpi_s, lumbar_s, curv_s), _build_status_html(stat_s, bad_s, alert_s)
+
     # Convertir RGB → BGR para YOLO/OpenCV
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
@@ -160,9 +219,10 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             keypoints=[], detected=False, timestamp=time.time(), frame_id=state.frame_count
         )
         state.frame_count += 1
-        out = frame_bgr.copy()
+        out = frame_bgr
         cv2.putText(out, "Sin deteccion — Situate frente a la camara",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
 
@@ -173,9 +233,10 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             keypoints=[], detected=False, timestamp=time.time(), frame_id=state.frame_count
         )
         state.frame_count += 1
-        out = frame_bgr.copy()
+        out = frame_bgr
         cv2.putText(out, "Sin deteccion — Situate frente a la camara",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
 
@@ -331,6 +392,10 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
                 pass
             state.last_alert_beep = now
 
+    # Store overlay + posture for frame skip re-use
+    state._last_overlay_bgr = out.copy()
+    state._last_posture_result = (cpi, stat_val, lumbar, curv, bad, is_alert)
+
     # Convertir BGR → RGB para Gradio
     out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
 
@@ -346,29 +411,21 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
               f"inferencia: {inference_ms:.1f}ms GPU | "
               f"CPI: {cpi:.0f} | {stat_val}")
 
-    # ── Construir HTML (cacheado — solo regenera si cambió) ──────────────
-    if abs(cpi - state._last_angle) > 0.5 or stat_val != state._last_status or abs(bad - state._last_bad_time) > 0.5:
-        state._cached_metrics = _build_metrics_html(cpi, stat_val, bad, cpi, lumbar, curv)
-        state._last_angle = cpi
-        state._last_bad_time = bad
-
-    # Status HTML — solo cambia al cambiar estado o alerta
-    if stat_val != state._last_status or is_alert != state._last_alert or abs(bad - state._last_bad_time) > 0.5:
-        state._cached_status = _build_status_html(stat_val, bad, is_alert)
-        state._last_status = stat_val
-        state._last_alert = is_alert
+    # Build HTML — always fresh with data-* attrs; JS handles DOM updates
+    metrics_html = _build_metrics_html(cpi, stat_val, bad, cpi, lumbar, curv)
+    status_html = _build_status_html(stat_val, bad, is_alert)
 
     return (
         out_rgb,
-        state._cached_metrics,
-        state._cached_status,
+        metrics_html,
+        status_html,
     )
 
 
 # ── HTML builders ────────────────────────────────────────────────────────────
-def _build_metrics_html(angle: float, status: str, bad_time: float, 
+def _build_metrics_html(angle: float, status: str, bad_time: float,
                          cpi: float = 0, lumbar: float = 0, curv: float = 0) -> str:
-    """Construye HTML del panel de métricas con anillo SVG y CPI."""
+    """Construye HTML del panel de métricas — estructura estable + JS inject."""
     palette = {
         "CORRECTO":       ("#10b981", "badge-ok"),
         "ALERTA LEVE":    ("#f59e0b", "badge-warn"),
@@ -378,65 +435,97 @@ def _build_metrics_html(angle: float, status: str, bad_time: float,
     }
     color, badge_cls = palette.get(status, ("#94a3b8", "badge-nd"))
 
-    # Anillo SVG: radio 52, max CPI=100
     r = 52
-    c = 2 * 3.1416 * r
+    circumference = 2 * 3.1416 * r
     pct = min(max(cpi, 0), 100) / 100
-    dash = c * pct
+    offset = circumference - circumference * pct
 
-    return f"""
-    <div class="pm-card" style="text-align:center;">
-        <div class="pm-gauge-wrap">
-            <svg width="130" height="130" viewBox="0 0 130 130">
-                <circle class="pm-gauge-track" cx="65" cy="65" r="{r}"/>
-                <circle class="pm-gauge-fill" cx="65" cy="65" r="{r}"
-                    stroke="{color}"
-                    stroke-dasharray="{c}"
-                    stroke-dashoffset="{c - dash}"
-                    style="color:{color}"/>
-            </svg>
-            <div class="pm-gauge-value" style="color:{color}">{cpi:.1f}</div>
-        </div>
-        <div class="pm-metric-label">CPI — Combined Posture Index</div>
-        <div class="pm-metric-sub">
-            <span class="pm-badge {badge_cls}">{status}</span>
-            &nbsp;|&nbsp; Lumbar: <strong>{lumbar:.0f}°</strong>
-            &nbsp;|&nbsp; Curv: <strong>{curv:.1f}%</strong>
-            &nbsp;|&nbsp; Acum: <strong>{bad_time:.0f}s</strong>
-        </div>
+    return f"""<div class="pm-card" style="text-align:center;" data-cpi="{cpi}" data-color="{color}" data-lumbar="{lumbar}" data-curv="{curv}" data-status="{status}" data-bad-time="{bad_time}" data-badge="{badge_cls}">
+    <div class="pm-gauge-wrap">
+      <svg width="130" height="130" viewBox="0 0 130 130">
+        <circle class="pm-gauge-track" cx="65" cy="65" r="52"/>
+        <circle class="pm-gauge-fill" cx="65" cy="65" r="52" id="pm-gauge-arc"
+          stroke="{color}" stroke-dasharray="{circumference}" stroke-dashoffset="{offset}" style="color:{color}"/>
+      </svg>
+      <div class="pm-gauge-value" id="pm-gauge-num" style="color:{color}">{cpi:.1f}</div>
     </div>
-    """
+    <div class="pm-metric-label">CPI — Combined Posture Index</div>
+    <div class="pm-metric-sub" id="pm-metric-sub">
+      <span class="pm-badge {badge_cls}" id="pm-badge">{status}</span>
+      &nbsp;|&nbsp; Lumbar: <strong id="pm-lumbar">{lumbar:.0f}°</strong>
+      &nbsp;|&nbsp; Curv: <strong id="pm-curv">{curv:.1f}%</strong>
+      &nbsp;|&nbsp; Acum: <strong id="pm-bad-time">{bad_time:.0f}s</strong>
+    </div>
+  </div>
+  <script>
+  (function(){{
+    var el = document.currentScript.previousElementSibling;
+    var cpi = parseFloat(el.dataset.cpi);
+    var color = el.dataset.color;
+    var lumbar = el.dataset.lumbar;
+    var curv = el.dataset.curv;
+    var status = el.dataset.status;
+    var badge = el.dataset.badge;
+    var badTime = el.dataset.badTime;
+    var r = 52, c = 2 * 3.1416 * r;
+    var pct = Math.min(Math.max(cpi, 0), 100) / 100;
+    var dash = c * pct;
+    var arc = el.querySelector('#pm-gauge-arc');
+    var num = el.querySelector('#pm-gauge-num');
+    var badgeEl = el.querySelector('#pm-badge');
+    var lumbarEl = el.querySelector('#pm-lumbar');
+    var curvEl = el.querySelector('#pm-curv');
+    var badTimeEl = el.querySelector('#pm-bad-time');
+    if (arc) {{ arc.setAttribute('stroke-dashoffset', String(c - dash)); arc.setAttribute('stroke', color); }}
+    if (num) {{ num.textContent = cpi.toFixed(1); num.style.color = color; }}
+    if (badgeEl) {{ badgeEl.textContent = status; badgeEl.className = 'pm-badge ' + badge; }}
+    if (lumbarEl) lumbarEl.textContent = lumbar + String.fromCharCode(176);
+    if (curvEl) curvEl.textContent = parseFloat(curv).toFixed(1) + '%';
+    if (badTimeEl) badTimeEl.textContent = badTime + 's';
+  }})();
+  </script>"""
 
 
 def _build_status_html(status: str, bad_time: float, alert: bool) -> str:
-    """Construye HTML del panel de estado y alertas con glow dinámico."""
-    if alert:
-        cls = "pm-status pm-status-crit pulse"
-        icon = '<span class="pm-live-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444"></span>ALERTA CRÍTICA'
-        detail = f"Mala postura acumulada: {bad_time:.0f}s · Corregí la posición de tu cabeza"
-    elif status == "ALERTA CRÍTICA":
-        cls = "pm-status pm-status-crit"
-        icon = "ALERTA CRÍTICA"
-        detail = f"Protrusión cefálica severa detectada · {bad_time:.0f}s acumulados"
-    elif status == "ALERTA LEVE":
-        cls = "pm-status pm-status-warn"
-        icon = "ALERTA LEVE"
-        detail = f"Cabeza ligeramente adelantada · {bad_time:.0f}s acumulados"
-    elif status in ("NO DETECTADO", "NO INICIADO"):
-        cls = "pm-status pm-status-nd"
-        icon = status
-        detail = "Posicionate frente a la cámara para iniciar el monitoreo"
-    else:
-        cls = "pm-status pm-status-ok"
-        icon = '<span class="pm-live-dot"></span>POSTURA CORRECTA'
-        detail = "Alineación cervical dentro de parámetros ergonómicos"
-
-    return (
-        f'<div class="{cls}" onmousemove="this.style.setProperty(\'--rx\',event.offsetX+\'px\');'
-        f'this.style.setProperty(\'--ry\',event.offsetY+\'px\')">'
-        f'<div style="font-size:15px;font-weight:700;position:relative;z-index:2">{icon}</div>'
-        f'<div style="font-size:12px;margin-top:8px;opacity:.88;position:relative;z-index:2">{detail}</div></div>'
-    )
+    """Construye HTML del panel de estado — estructura estable + JS inject."""
+    cls_map_safe = {"CORRECTO":"ok","ALERTA LEVE":"warn","ALERTA CRÍTICA":"crit","NO DETECTADO":"nd","NO INICIADO":"nd"}
+    cls = cls_map_safe.get(status, "nd")
+    return f"""<div class="pm-status pm-status-{cls}" data-status="{status}" data-bad-time="{bad_time}" data-alert="{str(alert)}" onmousemove="this.style.setProperty('--rx',event.offsetX+'px');this.style.setProperty('--ry',event.offsetY+'px')">
+    <div style="font-size:15px;font-weight:700;position:relative;z-index:2" id="pm-status-icon">{status}</div>
+    <div style="font-size:12px;margin-top:8px;opacity:.88;position:relative;z-index:2" id="pm-status-detail">...</div>
+  </div>
+  <script>
+  (function(){{
+    var el = document.currentScript.previousElementSibling;
+    var status = el.dataset.status;
+    var badTime = el.dataset.badTime;
+    var isAlert = el.dataset.alert === 'True';
+    var clsMap = {{'CORRECTO':'pm-status-ok','ALERTA LEVE':'pm-status-warn','ALERTA CRÍTICA':'pm-status-crit','NO DETECTADO':'pm-status-nd','NO INICIADO':'pm-status-nd'}};
+    var cls = clsMap[status] || 'pm-status-nd';
+    if (isAlert && (status === 'ALERTA CRÍTICA')) cls += ' pulse';
+    el.className = 'pm-status ' + cls;
+    var iconEl = el.querySelector('#pm-status-icon');
+    var detailEl = el.querySelector('#pm-status-detail');
+    if (iconEl && detailEl) {{
+      if (isAlert) {{
+        iconEl.innerHTML = '<span class="pm-live-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444"></span>ALERTA CRÍTICA';
+        detailEl.textContent = 'Mala postura acumulada: ' + badTime + 's · Corregí la posición de tu cabeza';
+      }} else if (status === 'ALERTA CRÍTICA') {{
+        iconEl.textContent = 'ALERTA CRÍTICA';
+        detailEl.textContent = 'Protrusión cefálica severa detectada · ' + badTime + 's acumulados';
+      }} else if (status === 'ALERTA LEVE') {{
+        iconEl.textContent = 'ALERTA LEVE';
+        detailEl.textContent = 'Cabeza ligeramente adelantada · ' + badTime + 's acumulados';
+      }} else if (status === 'NO DETECTADO' || status === 'NO INICIADO') {{
+        iconEl.textContent = status;
+        detailEl.textContent = 'Posicionate frente a la cámara para iniciar el monitoreo';
+      }} else {{
+        iconEl.innerHTML = '<span class="pm-live-dot"></span>POSTURA CORRECTA';
+        detailEl.textContent = 'Alineación cervical dentro de parámetros ergonómicos';
+      }}
+    }}
+  }})();
+  </script>"""
 
 
 # ── CSS y tema ──────────────────────────────────────────────────────────────
@@ -567,7 +656,6 @@ footer, .gradio-footer { display: none !important; }
                 border-color 0.35s ease;
     position: relative;
     overflow: hidden;
-    animation: fade-in-up 0.7s 0.1s cubic-bezier(0.16,1,0.3,1) both;
 }
 .pm-card::before {
     content: "";
@@ -657,7 +745,6 @@ footer, .gradio-footer { display: none !important; }
     transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
     position: relative;
     overflow: hidden;
-    animation: fade-in-up 0.7s 0.2s cubic-bezier(0.16,1,0.3,1) both;
 }
 .pm-status-ok    {
     background: rgba(16,185,129,0.06);
@@ -746,14 +833,12 @@ footer, .gradio-footer { display: none !important; }
     margin: 26px 0 14px 0;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--border);
-    animation: fade-in-up 0.6s 0.3s cubic-bezier(0.16,1,0.3,1) both;
 }
 .pm-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 12px;
-    animation: fade-in-up 0.6s 0.35s cubic-bezier(0.16,1,0.3,1) both;
 }
 .pm-table th {
     text-align: left;
@@ -795,7 +880,6 @@ footer, .gradio-footer { display: none !important; }
     font-size: 12.5px;
     line-height: 2.1;
     color: var(--text-muted);
-    animation: fade-in-up 0.6s 0.4s cubic-bezier(0.16,1,0.3,1) both;
 }
 .pm-kp-list li strong { color: var(--text-main); }
 .pm-kp-k1 { color: var(--warn); font-weight: 700; }
@@ -810,7 +894,6 @@ footer, .gradio-footer { display: none !important; }
     margin-top: 14px;
     position: relative;
     overflow: hidden;
-    animation: fade-in-up 0.6s 0.45s cubic-bezier(0.16,1,0.3,1) both;
 }
 .pm-note::before {
     content: "";
