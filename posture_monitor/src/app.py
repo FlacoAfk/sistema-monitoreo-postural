@@ -107,6 +107,7 @@ class AppState:
         self._last_status: str = ""
         self._last_bad_time: float = -1.0
         self._last_alert: bool = False
+        self._last_conf: float = 0.0
         self._skip_counter: int = 0
         self._last_overlay_bgr: Optional[np.ndarray] = None
         self._last_posture_result: Optional[tuple] = None
@@ -240,7 +241,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             elapsed = state._fps_times[-1] - state._fps_times[0]
             state._current_fps = (len(state._fps_times) - 1) / elapsed if elapsed > 0 else 0
 
-        return out_rgb, _build_metrics_json(cpi_s, stat_s, bad_s, lumbar_s, curv_s, state._current_fps, 0.0, alert_s, history=state._cpi_history)
+        return out_rgb, _build_metrics_json(cpi_s, stat_s, bad_s, lumbar_s, curv_s, state._current_fps, state._last_conf, alert_s, history=state._cpi_history)
 
     # Convertir RGB → BGR para YOLO/OpenCV
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -264,6 +265,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
+        state._last_conf = 0.0
         return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
 
     kp_data = preds[0].keypoints.data.cpu().numpy() # [N_personas, 9_kp, 3]
@@ -284,6 +286,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
+        state._last_conf = 0.0
         return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
 
     # ── Seleccionar persona principal (mayor confianza promedio) ────────
@@ -356,6 +359,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     CRITICAL_KP_IDX = [0, 1, 3, 4, 8]
     conf_vals = [keypoints[i][2] for i in CRITICAL_KP_IDX if i < len(keypoints) and keypoints[i][2] > 0.1]
     avg_confidence = sum(conf_vals) / len(conf_vals) if conf_vals else 0.0
+    state._last_conf = avg_confidence
 
     # ── CPI history: append + prune (sparkline) ───────────────────────
     state._cpi_history.append((timestamp, cpi))
@@ -873,6 +877,19 @@ body, .gradio-container {
 ::-webkit-scrollbar-thumb { background: var(--pm-border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--pm-accent); }
 
+/* Sidebar width lock */
+.pm-sidebar { max-width: 380px !important; }
+.pm-sidebar .gr-accordion,
+.pm-sidebar .gr-slider,
+.pm-sidebar .gr-button,
+.pm-sidebar .gr-file,
+.pm-sidebar > * { width: 100% !important; min-width: 0 !important; }
+.pm-sidebar .gr-accordion > div { width: 100% !important; }
+
+/* Left column expansion */
+.pm-leftcol { width: 100% !important; }
+.pm-leftcol > * { width: 100% !important; }
+
 """
 
 THEME = gr.themes.Base(
@@ -1062,7 +1079,7 @@ METRICS_JS = """
     var confBadge = document.getElementById('pm-conf-badge');
     if (confBar) { confBar.style.width = confPct + '%'; confBar.style.background = confColor; confBar.style.transition = 'width 0.3s ease, background 0.3s ease'; }
     if (confVal) { animateValue(confVal, confPct + '%'); confVal.style.color = confColor; }
-    if (confBadge) confBadge.style.display = conf < 0.4 ? 'inline-block' : 'none';
+    if (confBadge) confBadge.style.visibility = conf < 0.4 ? 'visible' : 'hidden';
 
     // Status card — solo cambiar si el status cambió
     var card = document.getElementById('pm-status-card');
@@ -1291,15 +1308,17 @@ def _build_static_metrics_panel() -> str:
   </div>
 
   <!-- ── CONFIANZA ── -->
-  <div class="pm-card">
+  <div class="pm-card" style="min-height:86px">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <span class="pm-section-title" style="margin-bottom:0">Confianza detección</span>
-      <span id="pm-conf-val" style="font-size:12px;font-weight:700;color:#94a3b8">0%</span>
+      <span id="pm-conf-val" style="font-size:12px;font-weight:700;color:#94a3b8;font-family:'JetBrains Mono',monospace">0%</span>
     </div>
     <div class="pm-conf-track">
       <div class="pm-conf-fill" id="pm-conf-bar"></div>
     </div>
-    <span id="pm-conf-badge" style="display:none;font-size:10px;font-weight:700;color:#ef4444">⚠ Detección débil — datos no confiables</span>
+    <div id="pm-conf-badge-slot" style="min-height:16px;margin-top:6px">
+      <span id="pm-conf-badge" style="visibility:hidden;font-size:10px;font-weight:700;color:#ef4444;letter-spacing:0.3px">⚠ Detección débil — datos no confiables</span>
+    </div>
   </div>
 
   <!-- ── SPARKLINE ── -->
@@ -1349,8 +1368,8 @@ def build_ui() -> gr.Blocks:
         session_state = gr.State(False)  # False = no activa, True = activa
 
         with gr.Row():
-            # ── Columna izquierda: Video ──────────────────────────────
-            with gr.Column(scale=3):
+            # ── IZQUIERDA: Video + historial + calibración + referencia ──
+            with gr.Column(scale=2, elem_classes=["pm-leftcol"]):
                 webcam = gr.Image(
                     sources=["webcam"],
                     label="Cámara en Vivo",
@@ -1369,15 +1388,7 @@ def build_ui() -> gr.Blocks:
                     )
 
                 model_info = gr.Markdown(
-                    "**Modelo actual:** YOLOv8n — Mas rapido (22ms, SCORE 0.9189)"
-                )
-
-            # ── Columna derecha: Métricas + controles ─────────────────
-            with gr.Column(scale=1):
-                metrics_panel = gr.HTML(_build_static_metrics_panel())
-                metrics_data = gr.HTML(
-                    value='<div id="pm-metrics-data-inner" style="display:none">{}</div>',
-                    elem_id="pm-metrics-data",
+                    "**Modelo actual:** YOLOv8n — Más rápido (22ms, SCORE 0.9189)"
                 )
 
                 with gr.Accordion("Calibrar umbrales CPI", open=False):
@@ -1394,7 +1405,7 @@ def build_ui() -> gr.Blocks:
 
                 with gr.Accordion("Referencia de keypoints", open=False):
                     gr.HTML("""
-                    <table style="width:100%;font-size:11px;border-collapse:collapse">
+                    <table style="width:100%;font-size:11px;border-collapse:collapse;color:#cbd5e1">
                       <tr style="color:#6366f1"><th style="padding:4px 6px;text-align:left">ID</th><th style="padding:4px 6px;text-align:left">Nombre</th><th style="padding:4px 6px;text-align:left">Ubicación</th></tr>
                       <tr><td style="padding:3px 6px"><b>K0</b></td><td>Head-back</td><td>Occipital</td></tr>
                       <tr><td style="padding:3px 6px"><b>K1</b></td><td>Neck-back</td><td>C7 cervical</td></tr>
@@ -1407,6 +1418,14 @@ def build_ui() -> gr.Blocks:
                       <tr><td style="padding:3px 6px"><b>K8</b></td><td>Shoulder-back</td><td>Escápula</td></tr>
                     </table>
                     """)
+
+            # ── DERECHA: solo métricas vivas + sesión ──
+            with gr.Column(scale=1, min_width=340, elem_classes=["pm-sidebar"]):
+                metrics_panel = gr.HTML(_build_static_metrics_panel())
+                metrics_data = gr.HTML(
+                    value='<div id="pm-metrics-data-inner" style="display:none">{}</div>',
+                    elem_id="pm-metrics-data",
+                )
 
                 with gr.Accordion("Grabación de sesión", open=True):
                     session_btn = gr.Button("▶ Iniciar sesión", variant="primary", size="sm")
