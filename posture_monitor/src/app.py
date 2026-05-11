@@ -158,16 +158,15 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         h, w = out.shape[:2]
         cpi_s, stat_s, lumbar_s, curv_s, bad_s, alert_s = state._last_posture_result or (0, "NO DETECTADO", 0, 0, 0, False)
 
- # Banner inferior — solo FPS (skip path, mismo formato que inference path)
- roi = out[h - 32:h, 0:w]
- np.multiply(roi, 0.5, out=roi, casting='unsafe')
+        # Banner inferior — solo FPS (skip path)
+        roi = out[h - 32:h, 0:w]
+        np.multiply(roi, 0.5, out=roi, casting='unsafe')
 
- fps_str = f"FPS: {state._current_fps:.0f}" if state._current_fps > 0 else ""
- if fps_str:
- (tw, _), _ = cv2.getTextSize(fps_str, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
- cv2.putText(out, fps_str, (w - tw - 10, h - 10),
- cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
-
+        fps_str = f"FPS: {state._current_fps:.0f}" if state._current_fps > 0 else ""
+        if fps_str:
+            (tw, _), _ = cv2.getTextSize(fps_str, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.putText(out, fps_str, (w - tw - 10, h - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
 
         # FPS tracking: include skip frames for accurate display rate
@@ -252,7 +251,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     stat_val = posture.status.value
     is_alert = posture.needs_alert
 
-    # ── Dibujar overlay limpio: keypoints (K# IDs) + esqueleto ──────────────
+    # ── Dibujar overlay con keypoints + nombres ────────────────────────────
     out = frame_bgr.copy()
     h, w = out.shape[:2]
 
@@ -268,49 +267,49 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             pt_b = (int(kp_b[0]), int(kp_b[1]))
             cv2.line(out, pt_a, pt_b, COLOR_SKELETON, 2, cv2.LINE_AA)
 
- # Dibujar keypoints — solo ID sutil (K0, K1, ...) sin nombres ni confianza
- for i, kp in enumerate(keypoints):
- if kp[2] <= 0.1:
- continue
- cx, cy = int(kp[0]), int(kp[1])
- color = COLORS_BGR[i] if i < len(COLORS_BGR) else (0, 255, 0)
+    # Dibujar keypoints — solo ID sutil (K0, K1, ...) sin nombres ni confianza
+    for i, kp in enumerate(keypoints):
+        if kp[2] <= 0.1:
+            continue
+        cx, cy = int(kp[0]), int(kp[1])
+        color = COLORS_BGR[i] if i < len(COLORS_BGR) else (0, 255, 0)
 
- # Círculo del keypoint — más grande para K0, K1, K8 (CPI)
- radius = 6 if i in CRITICAL_KEYPOINT_INDICES else 3
- cv2.circle(out, (cx, cy), radius, color, -1, cv2.LINE_AA)
+        # Círculo del keypoint — más grande para K0, K1, K8 (CPI)
+        radius = 6 if i in CRITICAL_KEYPOINT_INDICES else 3
+        cv2.circle(out, (cx, cy), radius, color, -1, cv2.LINE_AA)
 
- # Contorno blanco para visibilidad
- cv2.circle(out, (cx, cy), radius + 1, (255, 255, 255), 1, cv2.LINE_AA)
+        # Contorno blanco para visibilidad
+        cv2.circle(out, (cx, cy), radius + 1, (255, 255, 255), 1, cv2.LINE_AA)
 
- # Etiqueta sutil: solo "K0","K1",... sin fondo
- label = f"K{i}"
- cv2.putText(out, label, (cx + 8, cy - 6),
- cv2.FONT_HERSHEY_SIMPLEX, 0.32, (200, 200, 200), 1, cv2.LINE_AA)
+        # Etiqueta sutil: solo "K0","K1",... sin fondo
+        label = f"K{i}"
+        cv2.putText(out, label, (cx + 8, cy - 6),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.32, (200, 200, 200), 1, cv2.LINE_AA)
 
- # ── Líneas del ángulo lumbar ∠K8-K3-K4 (sin texto ni spine line) ─────
- if posture.status != PostureStatus.NO_DETECTADO and posture.lumbar_angle_deg > 0:
- k8_scapula = keypoints[8] # Escápula
- k3_back = keypoints[3] # Espalda media (VÉRTICE lumbar)
- k4_hips = keypoints[4] # Cadera
+    # ── Líneas del ángulo lumbar ∠K8-K3-K4 (sin texto ni spine line) ─────
+    if posture.status != PostureStatus.NO_DETECTADO and posture.lumbar_angle_deg > 0:
+        k8_scapula = keypoints[8]  # Escápula
+        k3_back = keypoints[3]     # Espalda media (VÉRTICE lumbar)
+        k4_hips = keypoints[4]     # Cadera
 
- if k8_scapula[2] > 0.1 and k3_back[2] > 0.1 and k4_hips[2] > 0.1:
- p_scap = (int(k8_scapula[0]), int(k8_scapula[1]))
- p_mid = (int(k3_back[0]), int(k3_back[1])) # Vértice
- p_hip = (int(k4_hips[0]), int(k4_hips[1]))
+        if k8_scapula[2] > 0.1 and k3_back[2] > 0.1 and k4_hips[2] > 0.1:
+            p_scap = (int(k8_scapula[0]), int(k8_scapula[1]))
+            p_mid = (int(k3_back[0]), int(k3_back[1]))  # Vértice
+            p_hip = (int(k4_hips[0]), int(k4_hips[1]))
 
- # Líneas del ángulo lumbar (naranja) — solo visual, sin texto
- cv2.line(out, p_mid, p_scap, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
- cv2.line(out, p_mid, p_hip, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+            # Líneas del ángulo lumbar (naranja) — solo visual, sin texto
+            cv2.line(out, p_mid, p_scap, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+            cv2.line(out, p_mid, p_hip, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
 
- # ── Banner inferior — solo FPS ──────────────────────────────────────
- roi = out[h - 32:h, 0:w]
- np.multiply(roi, 0.5, out=roi, casting='unsafe')
+    # ── Banner inferior — solo FPS ──────────────────────────────────────
+    roi = out[h - 32:h, 0:w]
+    np.multiply(roi, 0.5, out=roi, casting='unsafe')
 
- fps_str = f"FPS: {state._current_fps:.0f}" if state._current_fps > 0 else ""
- if fps_str:
- (tw, _), _ = cv2.getTextSize(fps_str, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
- cv2.putText(out, fps_str, (w - tw - 10, h - 10),
- cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
+    fps_str = f"FPS: {state._current_fps:.0f}" if state._current_fps > 0 else ""
+    if fps_str:
+        (tw, _), _ = cv2.getTextSize(fps_str, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        cv2.putText(out, fps_str, (w - tw - 10, h - 10),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
 
     # ── Alerta sonora (>30s mala postura, cada 5s) ────────────────────────
     if posture.needs_alert:
@@ -940,32 +939,32 @@ def build_ui() -> gr.Blocks:
                 </table>
                 """)
 
- gr.HTML('<div class="pm-sidebar-title">Keypoints del CPI (5 pts)</div>')
- gr.HTML("""
- <ul class="pm-kp-list">
- <li><strong>K0</strong> — Head-back / Occipital</li>
- <li><strong>K1</strong> — C7 / Neck-back</li>
- <li><strong>K8</strong> — Shoulder-back / Escapula</li>
- <li><strong>K3</strong> — Back-backedge / Espalda media</li>
- <li><strong>K4</strong> — Hips-backedge / Cadera</li>
- </ul>
- """)
+                gr.HTML('<div class="pm-sidebar-title">Keypoints del CPI (5 pts)</div>')
+                gr.HTML("""
+                <ul class="pm-kp-list">
+                    <li><strong>K0</strong> — Head-back / Occipital</li>
+                    <li><strong>K1</strong> — C7 / Neck-back</li>
+                    <li><strong>K8</strong> — Shoulder-back / Escapula</li>
+                    <li><strong>K3</strong> — Back-backedge / Espalda media</li>
+                    <li><strong>K4</strong> — Hips-backedge / Cadera</li>
+                </ul>
+                """)
 
- gr.HTML('<div class="pm-sidebar-title">Mapa de Keypoints (9 pts)</div>')
- gr.HTML("""
- <table class="pm-table">
- <tr><th>ID</th><th>Nombre</th><th>Ubicación</th></tr>
- <tr><td><strong>K0</strong></td><td>Head-back</td><td>Occipital</td></tr>
- <tr><td><strong>K1</strong></td><td>Neck-back</td><td>C7 cervical</td></tr>
- <tr><td><strong>K2</strong></td><td>Shoulder-top</td><td>Acromion</td></tr>
- <tr><td><strong>K3</strong></td><td>Back-borde</td><td>Espalda media</td></tr>
- <tr><td><strong>K4</strong></td><td>Hips-backedge</td><td>Cadera</td></tr>
- <tr><td><strong>K5</strong></td><td>Neck-middle</td><td>Cervical media</td></tr>
- <tr><td><strong>K6</strong></td><td>Jaw</td><td>Mandíbula</td></tr>
- <tr><td><strong>K7</strong></td><td>Chin</td><td>Mentón</td></tr>
- <tr><td><strong>K8</strong></td><td>Shoulder-back</td><td>Escápula</td></tr>
- </table>
- """)
+                gr.HTML('<div class="pm-sidebar-title">Mapa de Keypoints (9 pts)</div>')
+                gr.HTML("""
+                    <table class="pm-table">
+                    <tr><th>ID</th><th>Nombre</th><th>Ubicacion</th></tr>
+                    <tr><td><strong>K0</strong></td><td>Head-back</td><td>Occipital</td></tr>
+                    <tr><td><strong>K1</strong></td><td>Neck-back</td><td>C7 cervical</td></tr>
+                    <tr><td><strong>K2</strong></td><td>Shoulder-top</td><td>Acromion</td></tr>
+                    <tr><td><strong>K3</strong></td><td>Back-borde</td><td>Espalda media</td></tr>
+                    <tr><td><strong>K4</strong></td><td>Hips-backedge</td><td>Cadera</td></tr>
+                    <tr><td><strong>K5</strong></td><td>Neck-middle</td><td>Cervical media</td></tr>
+                    <tr><td><strong>K6</strong></td><td>Jaw</td><td>Mandibula</td></tr>
+                    <tr><td><strong>K7</strong></td><td>Chin</td><td>Menton</td></tr>
+                    <tr><td><strong>K8</strong></td><td>Shoulder-back</td><td>Escapula</td></tr>
+                    </table>
+                """)
 
                 gr.HTML('<div class="pm-sidebar-title">Alerta Sonora</div>')
                 gr.HTML('<div class="pm-note">Se emite un beep cada 5 s cuando la mala postura supera 30 s de acumulación continua.</div>')
