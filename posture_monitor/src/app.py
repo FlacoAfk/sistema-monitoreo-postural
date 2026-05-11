@@ -80,6 +80,12 @@ MODEL_LOOKUP: dict[str, dict[str, str]] = {c["name"]: c for c in MODEL_CONFIGS}
 # Skip ratio: process every Nth frame through YOLO, skip remaining
 SKIP_RATIO = 3
 
+# ── Suavizado EMA para keypoints (anti-flicker) ───────────────────────
+EMA_ALPHA: float = 0.35          # Factor de suavizado (0=sin cambio, 1=sin suavizar)
+KP_GRACE_FRAMES: int = 8         # Frames de gracia antes de descartar un keypoint perdido
+ALERT_POPUP_DURATION_S: float = 4.0  # Duración del popup de alerta (segundos)
+MAX_PERSONS: int = 6             # Detección máxima de personas
+
 # ── Estado global ────────────────────────────────────────────────────────────
 class AppState:
     """Estado persistente de la aplicación (entre frames)."""
@@ -102,6 +108,9 @@ class AppState:
         self._skip_counter: int = 0
         self._last_overlay_bgr: Optional[np.ndarray] = None
         self._last_posture_result: Optional[tuple] = None
+        self._smoothed_kps: Optional[np.ndarray] = None  # [9,3] EMA-smoothed keypoints
+        self._kp_missing_count: np.ndarray = np.zeros(9, dtype=int)  # Grace counter per kp
+        self._alert_popup_until: float = 0.0  # Timestamp until popup is visible
 
     def load_model(self, model_path: str) -> None:
         """Carga o recarga el modelo YOLO en GPU/CPU."""
@@ -185,12 +194,12 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # ── YOLO inference ──────────────────────────────────────────────────
     try:
         t_inf = time.time()
-        preds = state.model(frame_bgr, verbose=False, conf=0.3, imgsz=640)
+        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=416, max_det=MAX_PERSONS)
         inference_ms = (time.time() - t_inf) * 1000
     except Exception as e:
         return frame, _build_metrics_html(0, f"INFERENCIA ERROR: {e}", 0), _build_status_html("ERROR", 0, False)
 
-    # ── Extraer keypoints ──────────────────────────────────────────────────
+    # ── Extraer keypoints (multi-persona) + EMA smoothing ────────────
     if not preds or preds[0].keypoints is None:
         posture = state.analyzer.analyze(
             keypoints=[], detected=False, timestamp=time.time(), frame_id=state.frame_count
@@ -198,7 +207,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         state.frame_count += 1
         out = frame_bgr
         cv2.putText(out, "Sin deteccion — Situate frente a la camara",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
@@ -212,25 +221,57 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         state.frame_count += 1
         out = frame_bgr
         cv2.putText(out, "Sin deteccion — Situate frente a la camara",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
 
-    # Seleccionar persona con mayor confianza
+    # ── Seleccionar persona principal (mayor confianza promedio) ────────
     confidences = kp_data[:, :, 2]
     best_idx = int(np.argmax(confidences.mean(axis=1)))
     raw_kps = kp_data[best_idx]  # [9, 3]
 
-    # Construir lista de keypoints
+    # ── Construir keypoints con EMA smoothing (anti-flicker) ──────────
     keypoints: list[list[float]] = []
     for i in range(min(9, len(raw_kps))):
-        x, y, c = raw_kps[i]
-        keypoints.append([float(x), float(y), float(c)])
+        x_new, y_new, c_new = float(raw_kps[i][0]), float(raw_kps[i][1]), float(raw_kps[i][2])
+        if c_new < 0.1:
+            # Keypoint no detectado — usar último suavizado si está en grace period
+            if state._smoothed_kps is not None and state._kp_missing_count[i] < KP_GRACE_FRAMES:
+                x_s, y_s, c_s = state._smoothed_kps[i]
+                x_new, y_new, c_new = x_s, y_s, c_s * 0.85  # Decaer confianza gradualmente
+            else:
+                x_new, y_new, c_new = 0.0, 0.0, 0.0
+            state._kp_missing_count[i] += 1
+        else:
+            state._kp_missing_count[i] = 0  # Reset grace counter
 
-    # Rellenar con ceros si menos de 9
+        # EMA: mezcla entre valor nuevo y anterior suavizado
+        if state._smoothed_kps is not None and state._smoothed_kps[i][2] > 0.1:
+            x_prev, y_prev, c_prev = state._smoothed_kps[i]
+            alpha = EMA_ALPHA
+            x_new = alpha * x_new + (1 - alpha) * x_prev
+            y_new = alpha * y_new + (1 - alpha) * y_prev
+            c_new = max(c_new, alpha * c_new + (1 - alpha) * c_prev)
+
+        keypoints.append([x_new, y_new, c_new])
+
     while len(keypoints) < 9:
         keypoints.append([0.0, 0.0, 0.0])
+
+    # Actualizar estado EMA
+    state._smoothed_kps = np.array(keypoints, dtype=np.float32)
+
+    # ── Preparar datos de todas las personas para overlay multi-persona ─
+    all_persons_kps = []  # Lista de (keypoints_list, is_primary)
+    for p_idx in range(kp_data.shape[0]):
+        is_primary = (p_idx == best_idx)
+        person_kps = []
+        for k in range(min(9, kp_data.shape[1])):
+            person_kps.append([float(kp_data[p_idx][k][0]), float(kp_data[p_idx][k][1]), float(kp_data[p_idx][k][2])])
+        while len(person_kps) < 9:
+            person_kps.append([0.0, 0.0, 0.0])
+        all_persons_kps.append((person_kps, is_primary))
 
     # ── Análisis postural ──────────────────────────────────────────────────
     timestamp = time.time()
@@ -251,55 +292,50 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     stat_val = posture.status.value
     is_alert = posture.needs_alert
 
-    # ── Dibujar overlay con keypoints + nombres ────────────────────────────
+    # ── Dibujar overlay para todas las personas ─────────────────────────
     out = frame_bgr.copy()
     h, w = out.shape[:2]
 
-    # Dibujar esqueleto
-    for conn in SKELETON_CONNECTIONS:
-        i_a, i_b = conn
-        if i_a >= len(keypoints) or i_b >= len(keypoints):
-            continue
-        kp_a = keypoints[i_a]
-        kp_b = keypoints[i_b]
-        if kp_a[2] > 0.1 and kp_b[2] > 0.1:
-            pt_a = (int(kp_a[0]), int(kp_a[1]))
-            pt_b = (int(kp_b[0]), int(kp_b[1]))
-            cv2.line(out, pt_a, pt_b, COLOR_SKELETON, 2, cv2.LINE_AA)
+    for person_kps, is_primary in all_persons_kps:
+        # ── Esqueleto ──
+        for conn in SKELETON_CONNECTIONS:
+            i_a, i_b = conn
+            if i_a >= len(person_kps) or i_b >= len(person_kps):
+                continue
+            kp_a = person_kps[i_a]
+            kp_b = person_kps[i_b]
+            if kp_a[2] > 0.1 and kp_b[2] > 0.1:
+                pt_a = (int(kp_a[0]), int(kp_a[1]))
+                pt_b = (int(kp_b[0]), int(kp_b[1]))
+                cv2.line(out, pt_a, pt_b, COLOR_SKELETON, 2, cv2.LINE_AA)
 
-    # Dibujar keypoints — solo ID sutil (K0, K1, ...) sin nombres ni confianza
-    for i, kp in enumerate(keypoints):
-        if kp[2] <= 0.1:
-            continue
-        cx, cy = int(kp[0]), int(kp[1])
-        color = COLORS_BGR[i] if i < len(COLORS_BGR) else (0, 255, 0)
+        # ── Keypoints — solo ID sutil ──
+        for i, kp in enumerate(person_kps):
+            if kp[2] <= 0.1:
+                continue
+            cx, cy = int(kp[0]), int(kp[1])
+            color = COLORS_BGR[i] if i < len(COLORS_BGR) else (0, 255, 0)
+            radius = 6 if i in CRITICAL_KEYPOINT_INDICES else 3
+            if not is_primary:
+                radius = max(radius - 1, 2)  # Personas secundarias: más chicos
+            cv2.circle(out, (cx, cy), radius, color, -1, cv2.LINE_AA)
+            cv2.circle(out, (cx, cy), radius + 1, (255, 255, 255), 1, cv2.LINE_AA)
+            label = f"K{i}"
+            if is_primary:
+                cv2.putText(out, label, (cx + 8, cy - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.32, (200, 200, 200), 1, cv2.LINE_AA)
 
-        # Círculo del keypoint — más grande para K0, K1, K8 (CPI)
-        radius = 6 if i in CRITICAL_KEYPOINT_INDICES else 3
-        cv2.circle(out, (cx, cy), radius, color, -1, cv2.LINE_AA)
-
-        # Contorno blanco para visibilidad
-        cv2.circle(out, (cx, cy), radius + 1, (255, 255, 255), 1, cv2.LINE_AA)
-
-        # Etiqueta sutil: solo "K0","K1",... sin fondo
-        label = f"K{i}"
-        cv2.putText(out, label, (cx + 8, cy - 6),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.32, (200, 200, 200), 1, cv2.LINE_AA)
-
-    # ── Líneas del ángulo lumbar ∠K8-K3-K4 (sin texto ni spine line) ─────
-    if posture.status != PostureStatus.NO_DETECTADO and posture.lumbar_angle_deg > 0:
-        k8_scapula = keypoints[8]  # Escápula
-        k3_back = keypoints[3]     # Espalda media (VÉRTICE lumbar)
-        k4_hips = keypoints[4]     # Cadera
-
-        if k8_scapula[2] > 0.1 and k3_back[2] > 0.1 and k4_hips[2] > 0.1:
-            p_scap = (int(k8_scapula[0]), int(k8_scapula[1]))
-            p_mid = (int(k3_back[0]), int(k3_back[1]))  # Vértice
-            p_hip = (int(k4_hips[0]), int(k4_hips[1]))
-
-            # Líneas del ángulo lumbar (naranja) — solo visual, sin texto
-            cv2.line(out, p_mid, p_scap, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
-            cv2.line(out, p_mid, p_hip, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+        # ── Líneas del ángulo lumbar (solo persona principal) ──
+        if is_primary and posture.status != PostureStatus.NO_DETECTADO and posture.lumbar_angle_deg > 0:
+            k8_scapula = keypoints[8]
+            k3_back = keypoints[3]
+            k4_hips = keypoints[4]
+            if k8_scapula[2] > 0.1 and k3_back[2] > 0.1 and k4_hips[2] > 0.1:
+                p_scap = (int(k8_scapula[0]), int(k8_scapula[1]))
+                p_mid = (int(k3_back[0]), int(k3_back[1]))
+                p_hip = (int(k4_hips[0]), int(k4_hips[1]))
+                cv2.line(out, p_mid, p_scap, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
+                cv2.line(out, p_mid, p_hip, COLOR_ANGLE_LINE, 2, cv2.LINE_AA)
 
     # ── Banner inferior — solo FPS ──────────────────────────────────────
     roi = out[h - 32:h, 0:w]
@@ -311,7 +347,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         cv2.putText(out, fps_str, (w - tw - 10, h - 10),
             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
 
-    # ── Alerta sonora (>30s mala postura, cada 5s) ────────────────────────
+        # ── Alerta sonora + popup visual (>30s mala postura) ──────────────
     if posture.needs_alert:
         now = time.time()
         if now - state.last_alert_beep > 5.0:
@@ -320,6 +356,25 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             except Exception:
                 pass
             state.last_alert_beep = now
+        # Activar popup visual por ALERT_POPUP_DURATION_S segundos
+        state._alert_popup_until = now + ALERT_POPUP_DURATION_S
+
+    # ── Dibujar popup de alerta si está activo ─────────────────────────
+    if time.time() < state._alert_popup_until:
+        # Popup semi-transparente en esquina superior derecha
+        popup_w, popup_h = min(300, w - 20), 70
+        popup_x = w - popup_w - 15
+        popup_y = 15
+        overlay_bg = out[popup_y:popup_y+popup_h, popup_x:popup_x+popup_w].copy()
+        cv2.rectangle(overlay_bg, (0, 0), (popup_w, popup_h), (0, 0, 180), -1)
+        cv2.addWeighted(overlay_bg, 0.75, out[popup_y:popup_y+popup_h, popup_x:popup_x+popup_w], 0.25, 0,
+            out[popup_y:popup_y+popup_h, popup_x:popup_x+popup_w])
+        cv2.rectangle(out, (popup_x, popup_y), (popup_x+popup_w, popup_y+popup_h), (0, 0, 255), 2, cv2.LINE_AA)
+        bad_s = posture.bad_posture_accumulated_s
+        cv2.putText(out, f"ALERTA: Mala postura {bad_s:.0f}s",
+            (popup_x + 10, popup_y + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(out, "Corregi tu posicion",
+            (popup_x + 10, popup_y + 52), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200, 200, 200), 1, cv2.LINE_AA)
 
     # Store overlay + posture for frame skip re-use
     state._last_overlay_bgr = out.copy()
@@ -974,6 +1029,8 @@ def build_ui() -> gr.Blocks:
             fn=process_frame,
             inputs=[webcam, model_dropdown],
             outputs=[webcam, angle_display, status_display],
+            stream_every=0.05,
+            time_limit=None,
         )
 
         model_dropdown.change(
