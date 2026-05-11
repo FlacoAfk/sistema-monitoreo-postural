@@ -40,6 +40,208 @@ if DEVICE == "cuda":
     print(f"[INFO] GPU: {torch.cuda.get_device_name(0)}")
     print(f"[INFO] VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
 
+# ── Internacionalización (ES / EN / PT) ─────────────────────────────────────
+LANGS: dict[str, dict[str, str]] = {
+    "es": {
+        "title":          "Sistema de Monitoreo Postural en Tiempo Real",
+        "subtitle":       "Estimación del Combined Posture Index (CPI) — curvatura escapular + ángulo lumbar.<br>Universidad Surcolombiana &nbsp;·&nbsp; Castañeda Guzmán &amp; Idarraga Plazas, 2026",
+        "brand":          "Biomecánica Computacional — Procesamiento de Video",
+        "model_label":    "Modelo YOLO-Pose",
+        "model_info_def": "**Modelo actual:** YOLOv8n — Más rápido (22ms, SCORE 0.9189)",
+        "calib_title":    "Calibrar umbrales CPI",
+        "kp_title":       "Referencia de keypoints",
+        "session_title":  "Grabación de sesión",
+        "btn_start":      "▶ Iniciar sesión",
+        "btn_stop":       "⏹ Detener sesión",
+        "session_idle":   "_Sin sesión activa_",
+        "session_active": "🔴 Sesión activa — grabando datos...",
+        "session_done":   "✓ Sesión detenida — {n} frames grabados. Exporta el CSV para analizar los datos.",
+        "export_btn":     "⬇ Exportar CSV",
+        "export_file":    "Archivo CSV",
+        "thresh_hint":    "_Ajusta los sliders para calibrar_",
+        "thresh_leve":    "Umbral Leve",
+        "thresh_crit":    "Umbral Crítico",
+        "thresh_ok":      "✓ Umbrales actualizados — Leve: {leve:.0f} | Crítico: {crit:.0f}",
+        "thresh_err":     "⚠ Umbral leve ({leve:.0f}) debe ser menor que crítico ({crit:.0f})",
+        "lang_label":     "Idioma / Language",
+        # JS strings (embedded in METRICS_JS)
+        "js_cpi_title":   "CPI — Combined Posture Index",
+        "js_lumbar":      "Lumbar",
+        "js_curv":        "Curvatura",
+        "js_bad_time":    "Mala postura",
+        "js_fps":         "FPS",
+        "js_conf_title":  "Confianza detección",
+        "js_spark_title": "Historial CPI — últimos 60s",
+        "js_spark_ago":   "60s atrás",
+        "js_spark_now":   "ahora",
+        "js_ok":          "✓ POSTURA CORRECTA",
+        "js_warn":        "⚠ ALERTA LEVE",
+        "js_crit":        "✕ ALERTA CRÍTICA",
+        "js_nd":          "— NO DETECTADO",
+        "js_ni":          "— NO INICIADO",
+        "js_badge_ok":    "CORRECTO",
+        "js_badge_warn":  "ALERTA LEVE",
+        "js_badge_crit":  "ALERTA CRÍTICA",
+        "js_badge_nd":    "NO DETECTADO",
+        "js_badge_ni":    "NO INICIADO",
+        "js_detail_ok":   "Alineación cervical dentro de parámetros ergonómicos",
+        "js_detail_warn": "Cabeza ligeramente adelantada · {t}s acumulados",
+        "js_detail_crit": "Protrusión cefálica severa · {t}s acumulados",
+        "js_detail_nd":   "Colóquese frente a la cámara para iniciar",
+        "js_alert_title": "⚠ Mala postura: {t}s",
+        "js_weak_det":    "⚠ Detección débil — datos no confiables",
+        "js_no_data":     "Recopilando datos...",
+        "js_no_person":   "Sin deteccion — Colocate frente a la camara",
+        "js_thresh_ok":   "Correcto",
+        "js_thresh_warn": "Alerta leve",
+        "js_thresh_crit": "Alerta critica",
+        "js_thresh_ok_d": "Columna alineada, postura recta",
+        "js_thresh_warn_d": "Curvatura dorsal leve",
+        "js_thresh_crit_d": "Cifosis / hombros caidos",
+        "js_summary":     "Resumen de Sesión",
+        "js_frames":      "Frames analizados",
+        "js_pct_ok":      "Postura correcta",
+        "js_pct_warn":    "Alerta leve",
+        "js_pct_crit":    "Alerta crítica",
+        "js_avg_cpi":     "CPI promedio",
+        "js_max_cpi":     "CPI máximo",
+        "js_min_cpi":     "CPI mínimo",
+        "js_bad_total":   "Tiempo mala postura",
+    },
+    "en": {
+        "title":          "Real-Time Postural Monitoring System",
+        "subtitle":       "Combined Posture Index (CPI) estimation — scapular curvature + lumbar angle.<br>Universidad Surcolombiana &nbsp;·&nbsp; Castañeda Guzmán &amp; Idarraga Plazas, 2026",
+        "brand":          "Computational Biomechanics — Video Processing",
+        "model_label":    "YOLO-Pose Model",
+        "model_info_def": "**Current model:** YOLOv8n — Fastest (22ms, SCORE 0.9189)",
+        "calib_title":    "Calibrate CPI thresholds",
+        "kp_title":       "Keypoint reference",
+        "session_title":  "Session recording",
+        "btn_start":      "▶ Start session",
+        "btn_stop":       "⏹ Stop session",
+        "session_idle":   "_No active session_",
+        "session_active": "🔴 Session active — recording data...",
+        "session_done":   "✓ Session stopped — {n} frames recorded. Export CSV to analyze.",
+        "export_btn":     "⬇ Export CSV",
+        "export_file":    "CSV File",
+        "thresh_hint":    "_Adjust sliders to calibrate_",
+        "thresh_leve":    "Mild threshold",
+        "thresh_crit":    "Critical threshold",
+        "thresh_ok":      "✓ Thresholds updated — Mild: {leve:.0f} | Critical: {crit:.0f}",
+        "thresh_err":     "⚠ Mild threshold ({leve:.0f}) must be less than critical ({crit:.0f})",
+        "lang_label":     "Idioma / Language",
+        "js_cpi_title":   "CPI — Combined Posture Index",
+        "js_lumbar":      "Lumbar",
+        "js_curv":        "Curvature",
+        "js_bad_time":    "Bad posture",
+        "js_fps":         "FPS",
+        "js_conf_title":  "Detection confidence",
+        "js_spark_title": "CPI history — last 60s",
+        "js_spark_ago":   "60s ago",
+        "js_spark_now":   "now",
+        "js_ok":          "✓ CORRECT POSTURE",
+        "js_warn":        "⚠ MILD ALERT",
+        "js_crit":        "✕ CRITICAL ALERT",
+        "js_nd":          "— NOT DETECTED",
+        "js_ni":          "— NOT STARTED",
+        "js_badge_ok":    "CORRECT",
+        "js_badge_warn":  "MILD ALERT",
+        "js_badge_crit":  "CRITICAL ALERT",
+        "js_badge_nd":    "NOT DETECTED",
+        "js_badge_ni":    "NOT STARTED",
+        "js_detail_ok":   "Cervical alignment within ergonomic parameters",
+        "js_detail_warn": "Head slightly forward · {t}s accumulated",
+        "js_detail_crit": "Severe cephalic protrusion · {t}s accumulated",
+        "js_detail_nd":   "Position yourself in front of the camera",
+        "js_alert_title": "⚠ Bad posture: {t}s",
+        "js_weak_det":    "⚠ Weak detection — unreliable data",
+        "js_no_data":     "Collecting data...",
+        "js_no_person":   "No detection — stand in front of the camera",
+        "js_thresh_ok":   "Correct",
+        "js_thresh_warn": "Mild alert",
+        "js_thresh_crit": "Critical alert",
+        "js_thresh_ok_d": "Aligned spine, straight posture",
+        "js_thresh_warn_d": "Mild dorsal curvature",
+        "js_thresh_crit_d": "Kyphosis / dropped shoulders",
+        "js_summary":     "Session Summary",
+        "js_frames":      "Analyzed frames",
+        "js_pct_ok":      "Correct posture",
+        "js_pct_warn":    "Mild alert",
+        "js_pct_crit":    "Critical alert",
+        "js_avg_cpi":     "Average CPI",
+        "js_max_cpi":     "Max CPI",
+        "js_min_cpi":     "Min CPI",
+        "js_bad_total":   "Bad posture time",
+    },
+    "pt": {
+        "title":          "Sistema de Monitoramento Postural em Tempo Real",
+        "subtitle":       "Estimativa do Combined Posture Index (CPI) — curvatura escapular + ângulo lombar.<br>Universidad Surcolombiana &nbsp;·&nbsp; Castañeda Guzmán &amp; Idarraga Plazas, 2026",
+        "brand":          "Biomecânica Computacional — Processamento de Vídeo",
+        "model_label":    "Modelo YOLO-Pose",
+        "model_info_def": "**Modelo atual:** YOLOv8n — Mais rápido (22ms, SCORE 0.9189)",
+        "calib_title":    "Calibrar limiares CPI",
+        "kp_title":       "Referência de keypoints",
+        "session_title":  "Gravação de sessão",
+        "btn_start":      "▶ Iniciar sessão",
+        "btn_stop":       "⏹ Parar sessão",
+        "session_idle":   "_Sem sessão ativa_",
+        "session_active": "🔴 Sessão ativa — gravando dados...",
+        "session_done":   "✓ Sessão encerrada — {n} frames gravados. Exporte o CSV para analisar.",
+        "export_btn":     "⬇ Exportar CSV",
+        "export_file":    "Arquivo CSV",
+        "thresh_hint":    "_Ajuste os sliders para calibrar_",
+        "thresh_leve":    "Limiar Leve",
+        "thresh_crit":    "Limiar Crítico",
+        "thresh_ok":      "✓ Limiares atualizados — Leve: {leve:.0f} | Crítico: {crit:.0f}",
+        "thresh_err":     "⚠ Limiar leve ({leve:.0f}) deve ser menor que crítico ({crit:.0f})",
+        "lang_label":     "Idioma / Language",
+        "js_cpi_title":   "CPI — Combined Posture Index",
+        "js_lumbar":      "Lombar",
+        "js_curv":        "Curvatura",
+        "js_bad_time":    "Má postura",
+        "js_fps":         "FPS",
+        "js_conf_title":  "Confiança de detecção",
+        "js_spark_title": "Histórico CPI — últimos 60s",
+        "js_spark_ago":   "60s atrás",
+        "js_spark_now":   "agora",
+        "js_ok":          "✓ POSTURA CORRETA",
+        "js_warn":        "⚠ ALERTA LEVE",
+        "js_crit":        "✕ ALERTA CRÍTICA",
+        "js_nd":          "— NÃO DETECTADO",
+        "js_ni":          "— NÃO INICIADO",
+        "js_badge_ok":    "CORRETO",
+        "js_badge_warn":  "ALERTA LEVE",
+        "js_badge_crit":  "ALERTA CRÍTICA",
+        "js_badge_nd":    "NÃO DETECTADO",
+        "js_badge_ni":    "NÃO INICIADO",
+        "js_detail_ok":   "Alinhamento cervical dentro dos parâmetros ergonômicos",
+        "js_detail_warn": "Cabeça levemente avançada · {t}s acumulados",
+        "js_detail_crit": "Protrusão cefálica severa · {t}s acumulados",
+        "js_detail_nd":   "Posicione-se em frente à câmera para iniciar",
+        "js_alert_title": "⚠ Má postura: {t}s",
+        "js_weak_det":    "⚠ Detecção fraca — dados não confiáveis",
+        "js_no_data":     "Coletando dados...",
+        "js_no_person":   "Sem detecção — posicione-se em frente à câmera",
+        "js_thresh_ok":   "Correto",
+        "js_thresh_warn": "Alerta leve",
+        "js_thresh_crit": "Alerta crítica",
+        "js_thresh_ok_d": "Coluna alinhada, postura ereta",
+        "js_thresh_warn_d": "Curvatura dorsal leve",
+        "js_thresh_crit_d": "Cifose / ombros caídos",
+        "js_summary":     "Resumo da Sessão",
+        "js_frames":      "Frames analisados",
+        "js_pct_ok":      "Postura correta",
+        "js_pct_warn":    "Alerta leve",
+        "js_pct_crit":    "Alerta crítica",
+        "js_avg_cpi":     "CPI médio",
+        "js_max_cpi":     "CPI máximo",
+        "js_min_cpi":     "CPI mínimo",
+        "js_bad_total":   "Tempo de má postura",
+    },
+}
+
+DEFAULT_LANG = "es"
+
 from inference_engine import (
     KEYPOINT_NAMES,
     CRITICAL_KEYPOINT_INDICES,
@@ -477,33 +679,42 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
 
 
 # ── JSON builder (Static HTML + Hidden Textbox pattern) ──────────────────────
+_STATUS_TO_CODE: dict[str, str] = {
+    "CORRECTO":       "ok",
+    "ALERTA LEVE":    "warn",
+    "ALERTA CRÍTICA": "crit",
+    "NO DETECTADO":   "nd",
+    "NO INICIADO":    "ni",
+}
+_CODE_COLOR: dict[str, str] = {
+    "ok":   "#22c55e",
+    "warn": "#f59e0b",
+    "crit": "#ef4444",
+    "nd":   "#94a3b8",
+    "ni":   "#94a3b8",
+}
+
 def _build_metrics_json(cpi: float = 0, status: str = "NO DETECTADO",
                          bad_time: float = 0, lumbar: float = 0,
                          curv: float = 0, fps: float = 0,
                          conf: float = 0.0, alert: bool = False,
                          history: list = None) -> str:
-    """Serializa métricas a JSON para el panel estático."""
+    """Serializa métricas a JSON para el panel estático.
+    Envía status_code (ok/warn/crit/nd/ni) — el JS traduce según idioma activo."""
     import json as _json
-    palette = {
-        "CORRECTO":       "#22c55e",
-        "ALERTA LEVE":    "#f59e0b",
-        "ALERTA CRÍTICA": "#ef4444",
-        "NO DETECTADO":   "#94a3b8",
-        "NO INICIADO":    "#94a3b8",
-    }
-    # history is list of (timestamp, cpi) tuples — send only cpi values to JS
+    code = _STATUS_TO_CODE.get(status, "nd")
     history_values = [round(v, 1) for _, v in history] if history else []
     payload = _json.dumps({
-        "cpi": round(cpi, 1),
-        "status": status,
-        "bad_time": round(bad_time, 1),
-        "lumbar": round(lumbar, 1),
-        "curv": round(curv, 2),
-        "fps": round(fps, 1),
-        "conf": round(conf, 3),
-        "alert": alert,
-        "color": palette.get(status, "#94a3b8"),
-        "history": history_values,
+        "cpi":         round(cpi, 1),
+        "status_code": code,
+        "bad_time":    round(bad_time, 1),
+        "lumbar":      round(lumbar, 1),
+        "curv":        round(curv, 2),
+        "fps":         round(fps, 1),
+        "conf":        round(conf, 3),
+        "alert":       alert,
+        "color":       _CODE_COLOR.get(code, "#94a3b8"),
+        "history":     history_values,
     })
     return f'<div id="pm-metrics-data-inner" style="display:none">{payload}</div>'
 
@@ -925,40 +1136,6 @@ THEME = gr.themes.Base(
 )
 
 
-# ── Callbacks de sesión ──────────────────────────────────────────────────────
-def _start_session(is_active: bool) -> tuple[bool, str, str, object, object]:
-    """Inicia grabación de sesión. Retorna nuevo estado."""
-    if is_active:
-        # Ya activa — no hacer nada
-        return True, "⏹ Detener sesión", "🔴 Sesión activa — grabando datos...", gr.update(visible=False, value=""), gr.update(visible=False)
-    state.session_data = []
-    state.session_frame_counter = 0
-    state.session_active = True
-    state.session_start_time = time.time()
-    return True, "⏹ Detener sesión", "🔴 Sesión activa — grabando datos...", gr.update(visible=False, value=""), gr.update(visible=False)
-
-
-def _stop_session(is_active: bool) -> tuple[bool, str, str, object, object]:
-    """Detiene grabación y muestra resumen."""
-    if not is_active:
-        # Ya detenida — no hacer nada
-        return False, "▶ Iniciar sesión", "_Sin sesión activa_", gr.update(visible=False), gr.update(visible=False)
-    state.session_active = False
-    summary = _compute_summary(state.session_data)
-    summary_html = _build_summary_html(summary)
-    n = len(state.session_data)
-    msg = f"✓ Sesión detenida — {n} frames grabados. Exporta el CSV para analizar los datos."
-    return False, "▶ Iniciar sesión", msg, gr.update(visible=bool(summary_html), value=summary_html if summary_html else ""), gr.update(visible=n > 0)
-
-
-def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object]:
-    """Toggle start/stop sesión usando gr.State (no el label del botón)."""
-    if is_active:
-        return _stop_session(is_active)
-    else:
-        return _start_session(is_active)
-
-
 def _do_export() -> tuple[object, str]:
     """Exporta CSV y retorna el archivo."""
     path, msg = _export_csv_file()
@@ -968,57 +1145,78 @@ def _do_export() -> tuple[object, str]:
 
 
 # ── Threshold helpers ────────────────────────────────────────────────────────
-def _build_threshold_table(leve: float = 35, critico: float = 50) -> str:
+def _build_threshold_table(leve: float = 35, critico: float = 50, lang: str = "es") -> str:
     """Genera HTML de la tabla de umbrales CPI con valores actuales."""
+    t = LANGS.get(lang, LANGS["es"])
     return f"""<table class="pm-table">
     <tr><th>CPI</th><th>Estado</th><th>Significado</th></tr>
-    <tr><td>CPI ≤ {leve:.0f}</td><td><span class="pm-badge badge-ok">Correcto</span></td><td>Columna alineada, postura recta</td></tr>
-    <tr><td>{leve:.0f} &lt; CPI ≤ {critico:.0f}</td><td><span class="pm-badge badge-warn">Alerta leve</span></td><td>Curvatura dorsal leve</td></tr>
-    <tr><td>CPI &gt; {critico:.0f}</td><td><span class="pm-badge badge-crit">Alerta critica</span></td><td>Cifosis / hombros caidos</td></tr>
+    <tr><td>CPI ≤ {leve:.0f}</td><td><span class="pm-badge badge-ok">{t['js_thresh_ok']}</span></td><td>{t['js_thresh_ok_d']}</td></tr>
+    <tr><td>{leve:.0f} &lt; CPI ≤ {critico:.0f}</td><td><span class="pm-badge badge-warn">{t['js_thresh_warn']}</span></td><td>{t['js_thresh_warn_d']}</td></tr>
+    <tr><td>CPI &gt; {critico:.0f}</td><td><span class="pm-badge badge-crit">{t['js_thresh_crit']}</span></td><td>{t['js_thresh_crit_d']}</td></tr>
 </table>"""
 
 
-def _update_thresholds(leve: float, critico: float) -> tuple[str, str]:
+def _update_thresholds(leve: float, critico: float, lang: str = "es") -> tuple[str, str]:
     """Actualiza umbrales CPI en el analizador. Retorna (tabla_html, mensaje)."""
+    t = LANGS.get(lang, LANGS["es"])
     if leve >= critico:
         return (
-            _build_threshold_table(state.analyzer.CPI_LEVE, state.analyzer.CPI_CRITICO),
-            f"⚠ Umbral leve ({leve:.0f}) debe ser menor que crítico ({critico:.0f})"
+            _build_threshold_table(state.analyzer.CPI_LEVE, state.analyzer.CPI_CRITICO, lang),
+            t["thresh_err"].format(leve=leve, crit=critico)
         )
     state.analyzer.CPI_LEVE = float(leve)
     state.analyzer.CPI_CRITICO = float(critico)
     return (
-        _build_threshold_table(leve, critico),
-        f"✓ Umbrales actualizados — Leve: {leve:.0f} | Crítico: {critico:.0f}"
+        _build_threshold_table(leve, critico, lang),
+        t["thresh_ok"].format(leve=leve, crit=critico)
     )
 
 
-METRICS_JS = """
-() => {
+def _build_metrics_js() -> str:
+    """Genera METRICS_JS con el dict I18N de los 3 idiomas embebido."""
+    # Serializar los 3 dicts de strings JS
+    import json as _json
+    i18n_js = {lang: {k: v for k, v in d.items() if k.startswith("js_")}
+               for lang, d in LANGS.items()}
+    i18n_json = _json.dumps(i18n_js, ensure_ascii=False)
+    return f"""
+() => {{
   var CIRC = 326.73;
-  var prevStatus = '';
+  var prevCode = '';
   var alertTimer = null;
+  var I18N = {i18n_json};
 
-  function animateValue(el, newText) {
+  function getLang() {{
+    var el = document.getElementById('pm-lang-code');
+    return (el ? (el.textContent || el.innerText || '').trim() : '') || 'es';
+  }}
+
+  function t(key) {{
+    var lang = getLang();
+    var d = I18N[lang] || I18N['es'];
+    return d[key] || (I18N['es'][key] || key);
+  }}
+
+  function animateValue(el, newText) {{
     if (!el || el.textContent === newText) return;
     el.style.transition = 'opacity 0.15s ease';
     el.style.opacity = '0.2';
-    setTimeout(function() {
+    setTimeout(function() {{
       el.textContent = newText;
       el.style.opacity = '1';
-    }, 150);
-  }
+    }}, 150);
+  }}
 
-  function drawSparkline(history) {
+  function drawSparkline(history) {{
     if (!history || history.length < 2) return;
     var W = 280, H = 64, MAX = 100;
     var n = history.length;
-    var pts = history.map(function(v, i) {
+    var pts = history.map(function(v, i) {{
       return [i / (n - 1) * W, H - (Math.min(Math.max(v, 0), MAX) / MAX) * (H - 4) - 2];
-    });
-    var d = pts.map(function(p, i) {
+    }});
+    var d = pts.map(function(p, i) {{
       return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1);
-    }).join(' ');
+    }}).join(' ');
     var lineEl = document.getElementById('spark-line');
     if (lineEl) lineEl.setAttribute('d', d);
     var area = d + ' L' + pts[pts.length-1][0].toFixed(1) + ',' + H + ' L0,' + H + ' Z';
@@ -1026,44 +1224,40 @@ METRICS_JS = """
     if (areaEl) areaEl.setAttribute('d', area);
     var last = pts[pts.length - 1];
     var dotEl = document.getElementById('spark-dot');
-    if (dotEl) { dotEl.setAttribute('cx', last[0].toFixed(1)); dotEl.setAttribute('cy', last[1].toFixed(1)); }
-  }
+    if (dotEl) {{ dotEl.setAttribute('cx', last[0].toFixed(1)); dotEl.setAttribute('cy', last[1].toFixed(1)); }}
+  }}
 
-  function updateMetrics(data) {
-    var cpi     = data.cpi     !== undefined ? data.cpi     : 0;
-    var status  = data.status  || 'NO DETECTADO';
-    var badTime = data.bad_time !== undefined ? data.bad_time : 0;
-    var lumbar  = data.lumbar  !== undefined ? data.lumbar  : 0;
-    var curv    = data.curv    !== undefined ? data.curv    : 0;
-    var fps     = data.fps     !== undefined ? data.fps     : 0;
-    var conf    = data.conf    !== undefined ? data.conf    : 0;
-    var alert   = data.alert   || false;
-    var color   = data.color   || '#94a3b8';
-    var history = data.history || [];
+  function updateMetrics(data) {{
+    var cpi     = data.cpi        !== undefined ? data.cpi        : 0;
+    var code    = data.status_code || 'nd';
+    var badTime = data.bad_time   !== undefined ? data.bad_time   : 0;
+    var lumbar  = data.lumbar     !== undefined ? data.lumbar     : 0;
+    var curv    = data.curv       !== undefined ? data.curv       : 0;
+    var fps     = data.fps        !== undefined ? data.fps        : 0;
+    var conf    = data.conf       !== undefined ? data.conf       : 0;
+    var alert   = data.alert      || false;
+    var color   = data.color      || '#94a3b8';
+    var history = data.history    || [];
 
     // Gauge arc
     var pct = Math.min(Math.max(cpi, 0), 100) / 100;
     var offset = CIRC - CIRC * pct;
     var arc = document.getElementById('pm-gauge-arc');
-    if (arc) { arc.style.strokeDashoffset = offset; arc.style.stroke = color; }
+    if (arc) {{ arc.style.strokeDashoffset = offset; arc.style.stroke = color; }}
 
     // Gauge number
     var num = document.getElementById('pm-gauge-num');
-    if (num) { animateValue(num, cpi.toFixed(1)); num.style.color = color; }
+    if (num) {{ animateValue(num, cpi.toFixed(1)); num.style.color = color; }}
 
     // Badge
     var badgeEl = document.getElementById('pm-badge');
-    var badgeMap = {
-      'CORRECTO':       ['badge-ok',   'CORRECTO'],
-      'ALERTA LEVE':    ['badge-warn', 'ALERTA LEVE'],
-      'ALERTA CRÍTICA': ['badge-crit', 'ALERTA CRÍTICA'],
-      'NO DETECTADO':   ['badge-nd',   'NO DETECTADO'],
-      'NO INICIADO':    ['badge-nd',   'NO INICIADO'],
-    };
-    if (badgeEl) {
-      var b = badgeMap[status] || ['badge-nd', status];
-      if (badgeEl.textContent !== b[1]) { badgeEl.className = 'pm-badge ' + b[0]; badgeEl.textContent = b[1]; }
-    }
+    var badgeCls = {{ ok: 'badge-ok', warn: 'badge-warn', crit: 'badge-crit', nd: 'badge-nd', ni: 'badge-nd' }};
+    var badgeKey = {{ ok: 'js_badge_ok', warn: 'js_badge_warn', crit: 'js_badge_crit', nd: 'js_badge_nd', ni: 'js_badge_ni' }};
+    if (badgeEl) {{
+      var cls = badgeCls[code] || 'badge-nd';
+      var label = t(badgeKey[code] || 'js_badge_nd');
+      if (badgeEl.textContent !== label) {{ badgeEl.className = 'pm-badge ' + cls; badgeEl.textContent = label; }}
+    }}
 
     // Metrics text
     animateValue(document.getElementById('pm-lumbar'),   lumbar.toFixed(0) + '°');
@@ -1077,63 +1271,62 @@ METRICS_JS = """
     var confBar = document.getElementById('pm-conf-bar');
     var confVal = document.getElementById('pm-conf-val');
     var confBadge = document.getElementById('pm-conf-badge');
-    if (confBar) { confBar.style.width = confPct + '%'; confBar.style.background = confColor; confBar.style.transition = 'width 0.3s ease, background 0.3s ease'; }
-    if (confVal) { animateValue(confVal, confPct + '%'); confVal.style.color = confColor; }
-    if (confBadge) confBadge.style.visibility = conf < 0.4 ? 'visible' : 'hidden';
+    if (confBar) {{ confBar.style.width = confPct + '%'; confBar.style.background = confColor; confBar.style.transition = 'width 0.3s ease, background 0.3s ease'; }}
+    if (confVal) {{ animateValue(confVal, confPct + '%'); confVal.style.color = confColor; }}
+    if (confBadge) {{
+      confBadge.style.visibility = conf < 0.4 ? 'visible' : 'hidden';
+      confBadge.textContent = t('js_weak_det');
+    }}
 
-    // Status card — solo cambiar si el status cambió
+    // Status card — solo cambiar si el code cambió
     var card = document.getElementById('pm-status-card');
     var iconEl = document.getElementById('pm-status-icon');
     var detailEl = document.getElementById('pm-status-detail');
-    if (card && prevStatus !== status) {
-      var clsMap = {
-        'CORRECTO':       'pm-status pm-status-ok',
-        'ALERTA LEVE':    'pm-status pm-status-warn',
-        'ALERTA CRÍTICA': 'pm-status pm-status-crit',
-        'NO DETECTADO':   'pm-status pm-status-nd',
-        'NO INICIADO':    'pm-status pm-status-nd',
-      };
-      card.className = (clsMap[status] || 'pm-status pm-status-nd') + (alert ? ' pulse' : '');
-      prevStatus = status;
-    }
-    if (iconEl) {
-      var icons = { 'CORRECTO': '✓ POSTURA CORRECTA', 'ALERTA LEVE': '⚠ ALERTA LEVE', 'ALERTA CRÍTICA': '✕ ALERTA CRÍTICA', 'NO DETECTADO': '— NO DETECTADO', 'NO INICIADO': '— NO INICIADO' };
-      iconEl.textContent = icons[status] || status;
-    }
-    if (detailEl) {
-      if (status === 'CORRECTO') detailEl.textContent = 'Alineación cervical dentro de parámetros ergonómicos';
-      else if (status === 'ALERTA LEVE') detailEl.textContent = 'Cabeza ligeramente adelantada · ' + badTime.toFixed(0) + 's acumulados';
-      else if (status === 'ALERTA CRÍTICA') detailEl.textContent = 'Protrusión cefálica severa · ' + badTime.toFixed(0) + 's acumulados';
-      else detailEl.textContent = 'Colóquese frente a la cámara para iniciar';
-    }
+    if (card && prevCode !== code) {{
+      var clsMap = {{ ok: 'pm-status pm-status-ok', warn: 'pm-status pm-status-warn', crit: 'pm-status pm-status-crit', nd: 'pm-status pm-status-nd', ni: 'pm-status pm-status-nd' }};
+      card.className = (clsMap[code] || 'pm-status pm-status-nd') + (alert ? ' pulse' : '');
+      prevCode = code;
+    }}
+    if (iconEl) {{
+      var iconKey = {{ ok: 'js_ok', warn: 'js_warn', crit: 'js_crit', nd: 'js_nd', ni: 'js_ni' }};
+      iconEl.textContent = t(iconKey[code] || 'js_nd');
+    }}
+    if (detailEl) {{
+      if (code === 'ok')   detailEl.textContent = t('js_detail_ok');
+      else if (code === 'warn') detailEl.textContent = t('js_detail_warn').replace('{{t}}', badTime.toFixed(0));
+      else if (code === 'crit') detailEl.textContent = t('js_detail_crit').replace('{{t}}', badTime.toFixed(0));
+      else detailEl.textContent = t('js_detail_nd');
+    }}
 
     // Alert popup
     var popup = document.getElementById('pm-alert-popup');
-    if (popup && alert) {
-      var t = document.getElementById('pm-alert-title');
-      if (t) t.textContent = '⚠ Mala postura: ' + badTime.toFixed(0) + 's';
+    if (popup && alert) {{
+      var titleEl = document.getElementById('pm-alert-title');
+      if (titleEl) titleEl.textContent = t('js_alert_title').replace('{{t}}', badTime.toFixed(0));
       popup.style.display = 'block'; popup.style.opacity = '1';
       clearTimeout(alertTimer);
-      alertTimer = setTimeout(function() {
+      alertTimer = setTimeout(function() {{
         popup.style.opacity = '0';
-        setTimeout(function() { popup.style.display = 'none'; }, 400);
-      }, 4000);
-    }
+        setTimeout(function() {{ popup.style.display = 'none'; }}, 400);
+      }}, 4000);
+    }}
 
     // Sparkline
     drawSparkline(history);
-  }
+  }}
 
   // Polling loop — lee el div carrier cada 100ms
-  setInterval(function() {
+  setInterval(function() {{
     var el = document.getElementById('pm-metrics-data-inner');
     if (!el) return;
     var raw = (el.textContent || el.innerText || '').trim();
-    if (!raw || raw === '{}') return;
-    try { updateMetrics(JSON.parse(raw)); } catch(e) {}
-  }, 100);
-}
+    if (!raw || raw === '{{}}') return;
+    try {{ updateMetrics(JSON.parse(raw)); }} catch(e) {{}}
+  }}, 100);
+}}
 """
+
+METRICS_JS = _build_metrics_js()
 
 
 # ── Construir UI ─────────────────────────────────────────────────────────────
@@ -1182,94 +1375,52 @@ def _build_sparkline_html(history: list[tuple[float, float]]) -> str:
 </div>"""
 
 
-def _build_static_metrics_panel() -> str:
-    """Panel de métricas estático — se renderiza UNA VEZ. Sin scripts (Gradio 6 los elimina).
-    El JS se inyecta via app.load(js=METRICS_JS)."""
-    return """
+def _build_static_metrics_panel(lang: str = "es") -> str:
+    """Panel de métricas estático — se renderiza UNA VEZ por cambio de idioma.
+    Incluye el carrier pm-lang-code que el JS lee para traducir en tiempo real."""
+    t = LANGS.get(lang, LANGS["es"])
+    return f"""
 <style>
-  #pm-metrics-root { font-family: 'Inter', sans-serif; color: #e2e8f0; }
-
-  .pm-card {
-    background: rgba(15,23,42,0.7);
-    border: 1px solid rgba(99,102,241,0.2);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 10px;
-  }
-
-  .pm-section-title {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: #6366f1;
-    margin-bottom: 10px;
-  }
-
-  /* Gauge */
-  .pm-gauge-wrap { position: relative; width: 140px; height: 140px; margin: 0 auto 8px; }
-  .pm-gauge-track { fill: none; stroke: rgba(99,102,241,0.15); stroke-width: 10; }
-  .pm-gauge-fill  { fill: none; stroke-width: 10; stroke-linecap: round;
-    transform: rotate(-90deg); transform-origin: 50% 50%;
-    stroke-dasharray: 326.73; stroke-dashoffset: 326.73;
-    transition: stroke-dashoffset 0.5s ease, stroke 0.4s ease; }
-  .pm-gauge-value {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    font-size: 28px; font-weight: 800; transition: color 0.4s ease;
-  }
-  .pm-gauge-label { text-align: center; font-size: 10px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; }
-
-  /* Badges */
-  .pm-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }
-  .badge-ok   { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
-  .badge-warn { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
-  .badge-crit { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
-  .badge-nd   { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
-
-  /* Metrics grid */
-  .pm-metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-  .pm-metric-item { background: rgba(99,102,241,0.06); border-radius: 8px; padding: 8px 10px; }
-  .pm-metric-item .label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
-  .pm-metric-item .value { font-size: 18px; font-weight: 700; color: #e2e8f0; }
-
-  /* Confidence bar */
-  .pm-conf-track { background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden; margin: 6px 0 4px; }
-  .pm-conf-fill  { height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s ease, background 0.3s ease; }
-
-  /* Status card */
-  .pm-status {
-    border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
-    border: 1px solid transparent; transition: background 0.4s ease, border-color 0.4s ease;
-  }
-  .pm-status-nd   { background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.2); }
-  .pm-status-ok   { background: rgba(34,197,94,0.08);   border-color: rgba(34,197,94,0.3); }
-  .pm-status-warn { background: rgba(245,158,11,0.08);  border-color: rgba(245,158,11,0.3); }
-  .pm-status-crit { background: rgba(239,68,68,0.08);   border-color: rgba(239,68,68,0.3); }
-  .pm-status.pulse { animation: pm-pulse 1.8s ease-in-out infinite; }
-  @keyframes pm-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0.2); } }
-  .pm-status-icon   { font-size: 13px; font-weight: 700; }
-  .pm-status-detail { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-
-  /* Sparkline */
-  #pm-sparkline-svg { display: block; width: 100%; }
-
-  /* Alert popup */
-  #pm-alert-popup {
-    display: none; opacity: 0;
-    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-    background: rgba(239,68,68,0.95); color: #fff;
-    border-radius: 10px; padding: 12px 18px;
-    font-size: 13px; font-weight: 700;
-    box-shadow: 0 8px 32px rgba(239,68,68,0.4);
-    transition: opacity 0.3s ease;
-  }
+  #pm-metrics-root {{ font-family: 'Inter', sans-serif; color: #e2e8f0; }}
+  .pm-card {{ background: rgba(15,23,42,0.7); border: 1px solid rgba(99,102,241,0.2); border-radius: 12px; padding: 16px; margin-bottom: 10px; }}
+  .pm-section-title {{ font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #6366f1; margin-bottom: 10px; }}
+  .pm-gauge-wrap {{ position: relative; width: 140px; height: 140px; margin: 0 auto 8px; }}
+  .pm-gauge-track {{ fill: none; stroke: rgba(99,102,241,0.15); stroke-width: 10; }}
+  .pm-gauge-fill  {{ fill: none; stroke-width: 10; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; stroke-dasharray: 326.73; stroke-dashoffset: 326.73; transition: stroke-dashoffset 0.5s ease, stroke 0.4s ease; }}
+  .pm-gauge-value {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; font-weight: 800; transition: color 0.4s ease; }}
+  .pm-gauge-label {{ text-align: center; font-size: 10px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase; }}
+  .pm-badge {{ display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; }}
+  .badge-ok   {{ background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }}
+  .badge-warn {{ background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }}
+  .badge-crit {{ background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }}
+  .badge-nd   {{ background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }}
+  .pm-metrics-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }}
+  .pm-metric-item {{ background: rgba(99,102,241,0.06); border-radius: 8px; padding: 8px 10px; }}
+  .pm-metric-item .label {{ font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }}
+  .pm-metric-item .value {{ font-size: 18px; font-weight: 700; color: #e2e8f0; }}
+  .pm-conf-track {{ background: rgba(255,255,255,0.06); border-radius: 4px; height: 6px; overflow: hidden; margin: 6px 0 4px; }}
+  .pm-conf-fill  {{ height: 100%; border-radius: 4px; width: 0%; transition: width 0.3s ease, background 0.3s ease; }}
+  .pm-status {{ border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid transparent; transition: background 0.4s ease, border-color 0.4s ease; }}
+  .pm-status-nd   {{ background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.2); }}
+  .pm-status-ok   {{ background: rgba(34,197,94,0.08);   border-color: rgba(34,197,94,0.3); }}
+  .pm-status-warn {{ background: rgba(245,158,11,0.08);  border-color: rgba(245,158,11,0.3); }}
+  .pm-status-crit {{ background: rgba(239,68,68,0.08);   border-color: rgba(239,68,68,0.3); }}
+  .pm-status.pulse {{ animation: pm-pulse 1.8s ease-in-out infinite; }}
+  @keyframes pm-pulse {{ 0%,100% {{ box-shadow: 0 0 0 0 rgba(239,68,68,0); }} 50% {{ box-shadow: 0 0 0 8px rgba(239,68,68,0.2); }} }}
+  .pm-status-icon   {{ font-size: 13px; font-weight: 700; }}
+  .pm-status-detail {{ font-size: 11px; color: #94a3b8; margin-top: 4px; }}
+  #pm-sparkline-svg {{ display: block; width: 100%; }}
+  #pm-alert-popup {{ display: none; opacity: 0; position: fixed; bottom: 24px; right: 24px; z-index: 9999; background: rgba(239,68,68,0.95); color: #fff; border-radius: 10px; padding: 12px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 8px 32px rgba(239,68,68,0.4); transition: opacity 0.3s ease; }}
 </style>
+
+<!-- Carrier de idioma: el JS lee este div para saber qué idioma mostrar -->
+<div id="pm-lang-code" style="display:none">{lang}</div>
 
 <div id="pm-metrics-root">
 
   <!-- ── GAUGE + ESTADO ── -->
   <div class="pm-card">
-    <div class="pm-section-title">CPI — Combined Posture Index</div>
+    <div class="pm-section-title">{t['js_cpi_title']}</div>
     <div class="pm-gauge-wrap">
       <svg width="140" height="140" viewBox="0 0 140 140">
         <circle class="pm-gauge-track" cx="70" cy="70" r="52"/>
@@ -1278,24 +1429,24 @@ def _build_static_metrics_panel() -> str:
       <div class="pm-gauge-value" id="pm-gauge-num" style="color:#94a3b8">0.0</div>
     </div>
     <div class="pm-gauge-label">
-      <span class="pm-badge badge-nd" id="pm-badge">NO INICIADO</span>
+      <span class="pm-badge badge-nd" id="pm-badge">{t['js_badge_ni']}</span>
     </div>
 
     <div class="pm-metrics-grid" style="margin-top:12px">
       <div class="pm-metric-item">
-        <div class="label">Lumbar</div>
+        <div class="label">{t['js_lumbar']}</div>
         <div class="value" id="pm-lumbar">0°</div>
       </div>
       <div class="pm-metric-item">
-        <div class="label">Curvatura</div>
+        <div class="label">{t['js_curv']}</div>
         <div class="value" id="pm-curv">0.0%</div>
       </div>
       <div class="pm-metric-item">
-        <div class="label">Mala postura</div>
+        <div class="label">{t['js_bad_time']}</div>
         <div class="value" id="pm-bad-time">0s</div>
       </div>
       <div class="pm-metric-item">
-        <div class="label">FPS</div>
+        <div class="label">{t['js_fps']}</div>
         <div class="value" id="pm-fps-val" style="color:#6366f1">0</div>
       </div>
     </div>
@@ -1303,27 +1454,27 @@ def _build_static_metrics_panel() -> str:
 
   <!-- ── ESTADO POSTURAL ── -->
   <div class="pm-status pm-status-nd" id="pm-status-card">
-    <div class="pm-status-icon" id="pm-status-icon">— NO INICIADO</div>
-    <div class="pm-status-detail" id="pm-status-detail">Colóquese frente a la cámara para iniciar</div>
+    <div class="pm-status-icon" id="pm-status-icon">{t['js_ni']}</div>
+    <div class="pm-status-detail" id="pm-status-detail">{t['js_detail_nd']}</div>
   </div>
 
   <!-- ── CONFIANZA ── -->
   <div class="pm-card" style="min-height:86px">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <span class="pm-section-title" style="margin-bottom:0">Confianza detección</span>
+      <span class="pm-section-title" style="margin-bottom:0">{t['js_conf_title']}</span>
       <span id="pm-conf-val" style="font-size:12px;font-weight:700;color:#94a3b8;font-family:'JetBrains Mono',monospace">0%</span>
     </div>
     <div class="pm-conf-track">
       <div class="pm-conf-fill" id="pm-conf-bar"></div>
     </div>
     <div id="pm-conf-badge-slot" style="min-height:16px;margin-top:6px">
-      <span id="pm-conf-badge" style="visibility:hidden;font-size:10px;font-weight:700;color:#ef4444;letter-spacing:0.3px">⚠ Detección débil — datos no confiables</span>
+      <span id="pm-conf-badge" style="visibility:hidden;font-size:10px;font-weight:700;color:#ef4444;letter-spacing:0.3px">{t['js_weak_det']}</span>
     </div>
   </div>
 
   <!-- ── SPARKLINE ── -->
   <div class="pm-card">
-    <div class="pm-section-title">Historial CPI — últimos 60s</div>
+    <div class="pm-section-title">{t['js_spark_title']}</div>
     <svg id="pm-sparkline-svg" height="56" viewBox="0 0 280 56" preserveAspectRatio="none">
       <rect x="0" y="0" width="280" height="56" fill="rgba(99,102,241,0.03)" rx="4"/>
       <path id="spark-area" fill="rgba(99,102,241,0.12)" d=""/>
@@ -1331,41 +1482,96 @@ def _build_static_metrics_panel() -> str:
       <circle id="spark-dot" r="3.5" fill="#6366f1" cx="280" cy="28"/>
     </svg>
     <div style="display:flex;justify-content:space-between;font-size:9px;color:#475569;margin-top:3px">
-      <span>60s atrás</span><span>ahora</span>
+      <span>{t['js_spark_ago']}</span><span>{t['js_spark_now']}</span>
     </div>
   </div>
 
 </div>
 
 <div id="pm-alert-popup">
-  <div id="pm-alert-title">⚠ Alerta postural</div>
+  <div id="pm-alert-title">{t['js_alert_title'].replace('{{t}}', '0')}</div>
 </div>
 """
 
 
+# ── Idioma activo (módulo-level, leído por callbacks de sesión) ───────────────
+_current_lang: str = DEFAULT_LANG
+
+
+def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> tuple:
+    """Reconstruye todos los componentes traducibles al cambiar idioma."""
+    global _current_lang
+    _current_lang = lang
+    t = LANGS.get(lang, LANGS["es"])
+    btn_label = t["btn_stop"] if is_active else t["btn_start"]
+    session_msg = t["session_active"] if is_active else t["session_idle"]
+    return (
+        gr.update(value=_build_static_metrics_panel(lang)),          # metrics_panel
+        gr.update(value=_build_threshold_table(leve, critico, lang)), # threshold_table
+        gr.update(label=t["thresh_leve"]),                            # leve_slider
+        gr.update(label=t["thresh_crit"]),                            # critico_slider
+        gr.update(value=btn_label),                                   # session_btn
+        gr.update(value=session_msg),                                 # session_status
+        gr.update(value=t["thresh_hint"]),                            # threshold_msg
+        gr.update(label=t["export_file"]),                            # export_file
+        gr.update(value=t["export_btn"]),                             # export_btn
+        gr.update(label=t["model_label"]),                            # model_dropdown
+    )
+
+
+def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object]:
+    """Toggle start/stop sesión usando gr.State (no el label del botón)."""
+    t = LANGS.get(_current_lang, LANGS["es"])
+    if is_active:
+        # Detener
+        state.session_active = False
+        summary = _compute_summary(state.session_data)
+        summary_html = _build_summary_html(summary)
+        n = len(state.session_data)
+        msg = t["session_done"].format(n=n)
+        return False, t["btn_start"], msg, gr.update(visible=bool(summary_html), value=summary_html if summary_html else ""), gr.update(visible=n > 0)
+    else:
+        # Iniciar
+        state.session_data = []
+        state.session_frame_counter = 0
+        state.session_active = True
+        state.session_start_time = time.time()
+        return True, t["btn_stop"], t["session_active"], gr.update(visible=False, value=""), gr.update(visible=False)
+
+
 def build_ui() -> gr.Blocks:
     """Construye la interfaz Gradio completa."""
-
+    t0 = LANGS[DEFAULT_LANG]
     head_script = f'<script>({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
         head=head_script,
     ) as app:
-        gr.HTML("""
+        gr.HTML(f"""
         <div class="pm-header">
-            <h1>Sistema de Monitoreo Postural en Tiempo Real</h1>
-            <p>
-                Estimación del Combined Posture Index (CPI) — curvatura escapular + ángulo lumbar.<br>
-                Universidad Surcolombiana &nbsp;·&nbsp; Castañeda Guzmán &amp; Idarraga Plazas, 2026
-            </p>
+            <h1>{t0['title']}</h1>
+            <p>{t0['subtitle']}</p>
             <span class="brand-line">
                 <span class="pm-live-dot"></span>
-                Biomecánica Computacional — Procesamiento de Video
+                {t0['brand']}
             </span>
         </div>
         """)
 
-        session_state = gr.State(False)  # False = no activa, True = activa
+        session_state = gr.State(False)
+
+        # ── Selector de idioma (top-right) ──
+        with gr.Row():
+            with gr.Column(scale=5):
+                pass  # spacer
+            with gr.Column(scale=1, min_width=160):
+                lang_dropdown = gr.Dropdown(
+                    choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
+                    value=DEFAULT_LANG,
+                    label=t0["lang_label"],
+                    interactive=True,
+                    container=False,
+                )
 
         with gr.Row():
             # ── IZQUIERDA: Video + historial + calibración + referencia ──
@@ -1382,28 +1588,26 @@ def build_ui() -> gr.Blocks:
                     model_dropdown = gr.Dropdown(
                         choices=[c["name"] for c in MODEL_CONFIGS],
                         value=MODEL_CONFIGS[0]["name"],
-                        label="Modelo YOLO-Pose",
+                        label=t0["model_label"],
                         info="Selecciona el modelo para inferencia",
                         interactive=True,
                     )
 
-                model_info = gr.Markdown(
-                    "**Modelo actual:** YOLOv8n — Más rápido (22ms, SCORE 0.9189)"
-                )
+                model_info = gr.Markdown(t0["model_info_def"])
 
-                with gr.Accordion("Calibrar umbrales CPI", open=False):
-                    threshold_table = gr.HTML(_build_threshold_table())
+                with gr.Accordion(t0["calib_title"], open=False):
+                    threshold_table = gr.HTML(_build_threshold_table(lang=DEFAULT_LANG))
                     leve_slider = gr.Slider(
                         minimum=10, maximum=80, value=35, step=1,
-                        label="Umbral Leve", interactive=True
+                        label=t0["thresh_leve"], interactive=True
                     )
                     critico_slider = gr.Slider(
                         minimum=20, maximum=100, value=50, step=1,
-                        label="Umbral Crítico", interactive=True
+                        label=t0["thresh_crit"], interactive=True
                     )
-                    threshold_msg = gr.Markdown("_Ajusta los sliders para calibrar_")
+                    threshold_msg = gr.Markdown(t0["thresh_hint"])
 
-                with gr.Accordion("Referencia de keypoints", open=False):
+                with gr.Accordion(t0["kp_title"], open=False):
                     gr.HTML("""
                     <table style="width:100%;font-size:11px;border-collapse:collapse;color:#cbd5e1">
                       <tr style="color:#6366f1"><th style="padding:4px 6px;text-align:left">ID</th><th style="padding:4px 6px;text-align:left">Nombre</th><th style="padding:4px 6px;text-align:left">Ubicación</th></tr>
@@ -1421,21 +1625,21 @@ def build_ui() -> gr.Blocks:
 
             # ── DERECHA: solo métricas vivas + sesión ──
             with gr.Column(scale=1, min_width=340, elem_classes=["pm-sidebar"]):
-                metrics_panel = gr.HTML(_build_static_metrics_panel())
+                metrics_panel = gr.HTML(_build_static_metrics_panel(DEFAULT_LANG))
                 metrics_data = gr.HTML(
                     value='<div id="pm-metrics-data-inner" style="display:none">{}</div>',
                     elem_id="pm-metrics-data",
                 )
 
-                with gr.Accordion("Grabación de sesión", open=True):
-                    session_btn = gr.Button("▶ Iniciar sesión", variant="primary", size="sm")
-                    session_status = gr.Markdown("_Sin sesión activa_")
-                    export_btn = gr.Button("⬇ Exportar CSV", variant="secondary", size="sm", visible=False)
-                    export_file = gr.File(label="Archivo CSV", visible=False, interactive=False)
+                with gr.Accordion(t0["session_title"], open=True):
+                    session_btn = gr.Button(t0["btn_start"], variant="primary", size="sm")
+                    session_status = gr.Markdown(t0["session_idle"])
+                    export_btn = gr.Button(t0["export_btn"], variant="secondary", size="sm", visible=False)
+                    export_file = gr.File(label=t0["export_file"], visible=False, interactive=False)
                     export_msg = gr.Markdown("")
                     summary_display = gr.HTML("", visible=False)
 
-        # ── Evento streaming: cada frame de webcam → procesar ─────────
+        # ── Eventos ──────────────────────────────────────────────────────────
         webcam.stream(
             fn=process_frame,
             inputs=[webcam, model_dropdown],
@@ -1445,9 +1649,19 @@ def build_ui() -> gr.Blocks:
         )
 
         model_dropdown.change(
-            fn=lambda m: f"**Modelo seleccionado:** {m}",
+            fn=lambda m: f"**{LANGS[_current_lang]['model_label']}:** {m}",
             inputs=[model_dropdown],
             outputs=[model_info],
+        )
+
+        lang_dropdown.change(
+            fn=_on_lang_change,
+            inputs=[lang_dropdown, leve_slider, critico_slider, session_state],
+            outputs=[
+                metrics_panel, threshold_table, leve_slider, critico_slider,
+                session_btn, session_status, threshold_msg, export_file,
+                export_btn, model_dropdown,
+            ],
         )
 
         session_btn.click(
@@ -1463,12 +1677,12 @@ def build_ui() -> gr.Blocks:
         )
 
         leve_slider.change(
-            fn=_update_thresholds,
+            fn=lambda leve, critico: _update_thresholds(leve, critico, _current_lang),
             inputs=[leve_slider, critico_slider],
             outputs=[threshold_table, threshold_msg],
         )
         critico_slider.change(
-            fn=_update_thresholds,
+            fn=lambda leve, critico: _update_thresholds(leve, critico, _current_lang),
             inputs=[leve_slider, critico_slider],
             outputs=[threshold_table, threshold_msg],
         )
