@@ -119,6 +119,9 @@ class AppState:
         self.session_start_time: Optional[float] = None
         self.session_frame_counter: int = 0
 
+        # ── CPI history para sparkline ────────────────────────────────
+        self._cpi_history: list[tuple[float, float]] = []  # (timestamp, cpi)
+
     def load_model(self, model_path: str) -> None:
         """Carga o recarga el modelo YOLO en GPU/CPU."""
         if self.model is None or model_path != getattr(self, "_loaded_path", None):
@@ -203,12 +206,12 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     """
     if frame is None:
         blank = np.zeros((480, 640, 3), dtype=np.uint8)
-        return blank, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
+        return blank, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False), _build_sparkline_html([])
 
     # Buscar modelo seleccionado (O(1) con dict precomputado)
     cfg = MODEL_LOOKUP.get(model_choice)
     if cfg is None:
-        return frame, _build_metrics_html(0, "ERROR MODELO", 0), _build_status_html("ERROR", 0, False)
+        return frame, _build_metrics_html(0, "ERROR MODELO", 0), _build_status_html("ERROR", 0, False), _build_sparkline_html([])
     model_path = cfg["path"]
     state.model_key = cfg["key"]
 
@@ -216,7 +219,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     try:
         state.load_model(model_path)
     except Exception as e:
-        return frame, _build_metrics_html(0, f"ERROR: {e}", 0), _build_status_html("ERROR", 0, False)
+        return frame, _build_metrics_html(0, f"ERROR: {e}", 0), _build_status_html("ERROR", 0, False), _build_sparkline_html([])
 
     # ── Frame skipping: skip every Nth frame (save YOLO inference) ────
     state._skip_counter += 1
@@ -238,7 +241,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             elapsed = state._fps_times[-1] - state._fps_times[0]
             state._current_fps = (len(state._fps_times) - 1) / elapsed if elapsed > 0 else 0
 
-        return out_rgb, _build_metrics_html(cpi_s, stat_s, bad_s, cpi_s, lumbar_s, curv_s, fps=state._current_fps), _build_status_html(stat_s, bad_s, alert_s)
+        return out_rgb, _build_metrics_html(cpi_s, stat_s, bad_s, cpi_s, lumbar_s, curv_s, fps=state._current_fps, conf=0.0), _build_status_html(stat_s, bad_s, alert_s), _build_sparkline_html(state._cpi_history)
 
     # Convertir RGB → BGR para YOLO/OpenCV
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -249,7 +252,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=416, max_det=MAX_PERSONS)
         inference_ms = (time.time() - t_inf) * 1000
     except Exception as e:
-        return frame, _build_metrics_html(0, f"INFERENCIA ERROR: {e}", 0), _build_status_html("ERROR", 0, False)
+        return frame, _build_metrics_html(0, f"INFERENCIA ERROR: {e}", 0), _build_status_html("ERROR", 0, False), _build_sparkline_html([])
 
     # ── Extraer keypoints (multi-persona) + EMA smoothing ────────────
     if not preds or preds[0].keypoints is None:
@@ -262,7 +265,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
-        return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
+        return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False), _build_sparkline_html([])
 
     kp_data = preds[0].keypoints.data.cpu().numpy() # [N_personas, 9_kp, 3]
 
@@ -282,7 +285,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
-        return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False)
+        return out_rgb, _build_metrics_html(0, "NO DETECTADO", 0), _build_status_html("NO DETECTADO", 0, False), _build_sparkline_html([])
 
     # ── Seleccionar persona principal (mayor confianza promedio) ────────
     confidences = kp_data[:, :, 2]
@@ -349,6 +352,18 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     bad = posture.bad_posture_accumulated_s
     stat_val = posture.status.value
     is_alert = posture.needs_alert
+
+    # ── Confianza de detección (5 keypoints críticos del CPI) ─────────
+    CRITICAL_KP_IDX = [0, 1, 3, 4, 8]
+    conf_vals = [keypoints[i][2] for i in CRITICAL_KP_IDX if i < len(keypoints) and keypoints[i][2] > 0.1]
+    avg_confidence = sum(conf_vals) / len(conf_vals) if conf_vals else 0.0
+
+    # ── CPI history: append + prune (sparkline) ───────────────────────
+    state._cpi_history.append((timestamp, cpi))
+    cutoff = timestamp - 60.0
+    state._cpi_history = [(t, v) for t, v in state._cpi_history if t >= cutoff]
+    if len(state._cpi_history) > 180:
+        state._cpi_history = state._cpi_history[-180:]
 
     # ── Session recording: append frame data ─────────────────────────
     if state.session_active and stat_val != "NO DETECTADO":
@@ -450,20 +465,22 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
               f"CPI: {cpi:.0f} | {stat_val}")
 
     # Build HTML — always fresh with data-* attrs; JS handles DOM updates
-    metrics_html = _build_metrics_html(cpi, stat_val, bad, cpi, lumbar, curv, fps=state._current_fps)
+    metrics_html = _build_metrics_html(cpi, stat_val, bad, cpi, lumbar, curv, fps=state._current_fps, conf=avg_confidence)
     status_html = _build_status_html(stat_val, bad, is_alert)
 
+    sparkline_html = _build_sparkline_html(state._cpi_history)
     return (
         out_rgb,
         metrics_html,
         status_html,
+        sparkline_html,
     )
 
 
 # ── HTML builders ────────────────────────────────────────────────────────────
 def _build_metrics_html(angle: float, status: str, bad_time: float,
                          cpi: float = 0, lumbar: float = 0, curv: float = 0,
-                         fps: float = 0) -> str:
+                         fps: float = 0, conf: float = 0.0) -> str:
     """Construye HTML del panel de métricas — prev-value trick para CSS transitions."""
     palette = {
         "CORRECTO":       ("#10b981", "badge-ok"),
@@ -483,7 +500,7 @@ def _build_metrics_html(angle: float, status: str, bad_time: float,
       data-cpi="{cpi:.2f}" data-color="{color}" data-lumbar="{lumbar:.1f}"
       data-curv="{curv:.2f}" data-status="{status}" data-bad-time="{bad_time:.1f}"
       data-badge="{badge_cls}" data-fps="{fps:.1f}" data-offset="{new_offset:.2f}"
-      data-circ="{circumference:.2f}">
+      data-circ="{circumference:.2f}" data-conf="{conf:.3f}">
     <div class="pm-gauge-wrap">
       <svg width="160" height="160" viewBox="0 0 160 160">
         <circle class="pm-gauge-track" cx="80" cy="80" r="52"/>
@@ -502,6 +519,16 @@ def _build_metrics_html(angle: float, status: str, bad_time: float,
       &nbsp;|&nbsp; Curv: <strong id="pm-curv">{curv:.1f}%</strong>
       &nbsp;|&nbsp; Acum: <strong id="pm-bad-time">{bad_time:.0f}s</strong>
       &nbsp;|&nbsp; <span style="color:var(--accent-cyan);font-weight:700" id="pm-fps-val">{fps:.0f} fps</span>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--pm-border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:10px;color:var(--pm-text-3);text-transform:uppercase;letter-spacing:1px">Confianza detección</span>
+        <span id="pm-conf-val" style="font-size:11px;font-weight:700;color:var(--pm-text-2)">{conf*100:.0f}%</span>
+      </div>
+      <div class="pm-conf-bar-wrap">
+        <div class="pm-conf-bar" id="pm-conf-bar" style="width:{conf*100:.0f}%;background:{'#22c55e' if conf >= 0.7 else '#f59e0b' if conf >= 0.4 else '#ef4444'}"></div>
+      </div>
+      <span id="pm-conf-badge" style="display:{'inline-block' if conf < 0.4 and conf > 0 else 'none'};font-size:10px;font-weight:700;color:#ef4444;margin-top:4px">&#9888; Detección débil</span>
     </div>
   </div>
   <script>
@@ -546,6 +573,15 @@ def _build_metrics_html(angle: float, status: str, bad_time: float,
     if (curvEl)    curvEl.textContent = parseFloat(curv).toFixed(1) + '%';
     if (badTimeEl) badTimeEl.textContent = badTime + 's';
     if (fpsEl)     fpsEl.textContent = parseFloat(fps).toFixed(0) + ' fps';
+    var conf = parseFloat(el.dataset.conf || '0');
+    var confPct = (conf * 100).toFixed(0);
+    var confColor = conf >= 0.7 ? '#22c55e' : conf >= 0.4 ? '#f59e0b' : '#ef4444';
+    var confBar = el.querySelector('#pm-conf-bar');
+    var confVal = el.querySelector('#pm-conf-val');
+    var confBadge = el.querySelector('#pm-conf-badge');
+    if (confBar) {{ confBar.style.width = confPct + '%'; confBar.style.background = confColor; }}
+    if (confVal) {{ confVal.textContent = confPct + '%'; confVal.style.color = confColor; }}
+    if (confBadge) {{ confBadge.style.display = (conf < 0.4 && conf > 0) ? 'inline-block' : 'none'; }}
   }})();
   </script>"""
 
@@ -1071,6 +1107,28 @@ footer, .gradio-footer { display: none !important; }
 *::-webkit-scrollbar { width: 4px; }
 *::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.12); border-radius: 10px; }
 *::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.22); }
+
+/* ── Confidence bar ── */
+.pm-conf-bar-wrap { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.pm-conf-bar { height: 100%; border-radius: 2px; transition: width 0.4s ease, background 0.4s ease; min-width: 2px; }
+
+/* ── CPI Sparkline ── */
+.pm-sparkline-wrap { margin-top: 4px; }
+.pm-sparkline-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--pm-text-3);
+    margin-top: 4px;
+    padding: 0 2px;
+}
+.pm-sparkline-placeholder {
+    font-size: 11px;
+    color: var(--pm-text-3);
+    text-align: center;
+    padding: 18px 0;
+    font-style: italic;
+}
 """
 
 THEME = gr.themes.Base(
@@ -1148,7 +1206,78 @@ def _do_export() -> tuple[object, str]:
     return gr.update(visible=False), msg
 
 
+# ── Threshold helpers ────────────────────────────────────────────────────────
+def _build_threshold_table(leve: float = 35, critico: float = 50) -> str:
+    """Genera HTML de la tabla de umbrales CPI con valores actuales."""
+    return f"""<table class="pm-table">
+    <tr><th>CPI</th><th>Estado</th><th>Significado</th></tr>
+    <tr><td>CPI ≤ {leve:.0f}</td><td><span class="pm-badge badge-ok">Correcto</span></td><td>Columna alineada, postura recta</td></tr>
+    <tr><td>{leve:.0f} &lt; CPI ≤ {critico:.0f}</td><td><span class="pm-badge badge-warn">Alerta leve</span></td><td>Curvatura dorsal leve</td></tr>
+    <tr><td>CPI &gt; {critico:.0f}</td><td><span class="pm-badge badge-crit">Alerta critica</span></td><td>Cifosis / hombros caidos</td></tr>
+</table>"""
+
+
+def _update_thresholds(leve: float, critico: float) -> tuple[str, str]:
+    """Actualiza umbrales CPI en el analizador. Retorna (tabla_html, mensaje)."""
+    if leve >= critico:
+        return (
+            _build_threshold_table(state.analyzer.CPI_LEVE, state.analyzer.CPI_CRITICO),
+            f"⚠ Umbral leve ({leve:.0f}) debe ser menor que crítico ({critico:.0f})"
+        )
+    state.analyzer.CPI_LEVE = float(leve)
+    state.analyzer.CPI_CRITICO = float(critico)
+    return (
+        _build_threshold_table(leve, critico),
+        f"✓ Umbrales actualizados — Leve: {leve:.0f} | Crítico: {critico:.0f}"
+    )
+
+
 # ── Construir UI ─────────────────────────────────────────────────────────────
+def _build_sparkline_html(history: list[tuple[float, float]]) -> str:
+    """Genera SVG sparkline de CPI (últimos 60s)."""
+    W, H, PAD = 280, 64, 4
+    if len(history) < 2:
+        return '<div class="pm-sparkline-placeholder">Recopilando datos...</div>'
+
+    times  = [t for t, _ in history]
+    values = [v for _, v in history]
+    t_min, t_max = times[0], times[-1]
+    t_range = max(t_max - t_min, 1.0)
+
+    def _x(t: float) -> float:
+        return PAD + (t - t_min) / t_range * (W - 2 * PAD)
+
+    def _y(v: float) -> float:
+        return H - PAD - min(max(v, 0), 100) / 100.0 * (H - 2 * PAD)
+
+    points = " ".join(f"{_x(t):.1f},{_y(v):.1f}" for t, v in history)
+    last_cpi = values[-1]
+    line_color = "#22c55e" if last_cpi <= 35 else "#f59e0b" if last_cpi <= 50 else "#ef4444"
+
+    # Zone band Y coords
+    y_0   = _y(0)
+    y_35  = _y(35)
+    y_50  = _y(50)
+    y_100 = _y(100)
+    x0, xw = PAD, W - 2 * PAD
+
+    return f"""<div class="pm-sparkline-wrap">
+  <svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" style="display:block;width:100%">
+    <rect x="{x0}" y="{y_100:.1f}" width="{xw}" height="{y_35 - y_100:.1f}" fill="rgba(34,197,94,0.07)" rx="2"/>
+    <rect x="{x0}" y="{y_35:.1f}"  width="{xw}" height="{y_50 - y_35:.1f}"  fill="rgba(245,158,11,0.07)" rx="2"/>
+    <rect x="{x0}" y="{y_50:.1f}"  width="{xw}" height="{y_0 - y_50:.1f}"   fill="rgba(239,68,68,0.07)"  rx="2"/>
+    <polyline points="{points}" fill="none" stroke="{line_color}" stroke-width="1.8"
+      stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
+    <circle cx="{_x(times[-1]):.1f}" cy="{_y(last_cpi):.1f}" r="3.5" fill="{line_color}"/>
+  </svg>
+  <div class="pm-sparkline-labels">
+    <span>60s</span>
+    <span style="color:{line_color};font-weight:700">CPI {last_cpi:.0f}</span>
+    <span>ahora</span>
+  </div>
+</div>"""
+
+
 def build_ui() -> gr.Blocks:
     """Construye la interfaz Gradio completa."""
 
@@ -1201,14 +1330,17 @@ def build_ui() -> gr.Blocks:
                 status_display = gr.HTML(_build_status_html("NO INICIADO", 0, False))
 
                 gr.HTML('<div class="pm-sidebar-title">Umbrales CPI</div>')
-                gr.HTML("""
-                <table class="pm-table">
-                    <tr><th>CPI</th><th>Estado</th><th>Significado</th></tr>
-                    <tr><td>CPI ≤ 35</td><td><span class="pm-badge badge-ok">Correcto</span></td><td>Columna alineada, postura recta</td></tr>
-                    <tr><td>35 < CPI ≤ 50</td><td><span class="pm-badge badge-warn">Alerta leve</span></td><td>Curvatura dorsal leve</td></tr>
-                    <tr><td>CPI > 50</td><td><span class="pm-badge badge-crit">Alerta critica</span></td><td>Cifosis / hombros caidos</td></tr>
-                </table>
-                """)
+                threshold_table = gr.HTML(_build_threshold_table())
+                gr.HTML('<div class="pm-sidebar-title">Calibrar Umbrales</div>')
+                leve_slider = gr.Slider(
+                    minimum=10, maximum=80, value=35, step=1,
+                    label="Umbral Leve (CPI)", interactive=True
+                )
+                critico_slider = gr.Slider(
+                    minimum=20, maximum=100, value=50, step=1,
+                    label="Umbral Crítico (CPI)", interactive=True
+                )
+                threshold_msg = gr.Markdown("_Ajusta los sliders para calibrar los umbrales_")
 
                 gr.HTML('<div class="pm-sidebar-title">Keypoints del CPI (5 pts)</div>')
                 gr.HTML("""
@@ -1240,6 +1372,9 @@ def build_ui() -> gr.Blocks:
                 gr.HTML('<div class="pm-sidebar-title">Alerta Sonora</div>')
                 gr.HTML('<div class="pm-note">Se emite un beep cada 5 s cuando la mala postura supera 30 s de acumulación continua.</div>')
 
+                gr.HTML('<div class="pm-sidebar-title">CPI — Últimos 60 segundos</div>')
+                sparkline_display = gr.HTML('<div class="pm-sparkline-placeholder">Inicia el monitoreo para ver el gráfico...</div>')
+
                 gr.HTML('<div class="pm-sidebar-title">Grabación de Sesión</div>')
                 session_btn = gr.Button("▶ Iniciar sesión", variant="primary", size="sm")
                 session_status = gr.Markdown("_Sin sesión activa_")
@@ -1252,7 +1387,7 @@ def build_ui() -> gr.Blocks:
         webcam.stream(
             fn=process_frame,
             inputs=[webcam, model_dropdown],
-            outputs=[webcam, angle_display, status_display],
+            outputs=[webcam, angle_display, status_display, sparkline_display],
             stream_every=0.05,
             time_limit=None,
         )
@@ -1273,6 +1408,17 @@ def build_ui() -> gr.Blocks:
             fn=_do_export,
             inputs=[],
             outputs=[export_file, export_msg],
+        )
+
+        leve_slider.change(
+            fn=_update_thresholds,
+            inputs=[leve_slider, critico_slider],
+            outputs=[threshold_table, threshold_msg],
+        )
+        critico_slider.change(
+            fn=_update_thresholds,
+            inputs=[leve_slider, critico_slider],
+            outputs=[threshold_table, threshold_msg],
         )
 
         return app
