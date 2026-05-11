@@ -192,7 +192,7 @@ def _nms_persons(boxes: np.ndarray, kp_data: np.ndarray, iou_thresh: float = 0.3
     return kp_data[np.array(keep)]
 
 # ── Función principal: procesar un frame de webcam ───────────────────────────
-def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str, str]:
+def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str]:
     """
     Procesa un frame de la webcam: YOLO inference + overlay + análisis postural.
 
@@ -201,16 +201,16 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         model_choice: Nombre del modelo seleccionado.
 
     Returns:
-        (frame_con_overlay, metrics_json, sparkline_html)
+        (frame_con_overlay, metrics_json)
     """
     if frame is None:
         blank = np.zeros((480, 640, 3), dtype=np.uint8)
-        return blank, _build_metrics_json(), _build_sparkline_html([])
+        return blank, _build_metrics_json(history=[])
 
     # Buscar modelo seleccionado (O(1) con dict precomputado)
     cfg = MODEL_LOOKUP.get(model_choice)
     if cfg is None:
-        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
+        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
     model_path = cfg["path"]
     state.model_key = cfg["key"]
 
@@ -218,7 +218,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     try:
         state.load_model(model_path)
     except Exception as e:
-        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
+        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
 
     # ── Frame skipping: skip every Nth frame (save YOLO inference) ────
     state._skip_counter += 1
@@ -240,7 +240,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             elapsed = state._fps_times[-1] - state._fps_times[0]
             state._current_fps = (len(state._fps_times) - 1) / elapsed if elapsed > 0 else 0
 
-        return out_rgb, _build_metrics_json(cpi_s, stat_s, bad_s, lumbar_s, curv_s, state._current_fps, 0.0, alert_s), _build_sparkline_html(state._cpi_history)
+        return out_rgb, _build_metrics_json(cpi_s, stat_s, bad_s, lumbar_s, curv_s, state._current_fps, 0.0, alert_s, history=state._cpi_history)
 
     # Convertir RGB → BGR para YOLO/OpenCV
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -248,7 +248,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # ── YOLO inference ──────────────────────────────────────────────────
     try:
         t_inf = time.time()
-        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=416, max_det=MAX_PERSONS)
+        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=320, max_det=MAX_PERSONS)
         inference_ms = (time.time() - t_inf) * 1000
     except Exception as e:
         return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
@@ -264,7 +264,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
-        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
+        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
 
     kp_data = preds[0].keypoints.data.cpu().numpy() # [N_personas, 9_kp, 3]
 
@@ -284,7 +284,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
-        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
+        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
 
     # ── Seleccionar persona principal (mayor confianza promedio) ────────
     confidences = kp_data[:, :, 2]
@@ -464,13 +464,11 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
               f"CPI: {cpi:.0f} | {stat_val}")
 
     # Build JSON — always fresh; JS polling loop handles DOM updates
-    metrics_json = _build_metrics_json(cpi, stat_val, bad, lumbar, curv, state._current_fps, avg_confidence, is_alert)
+    metrics_json = _build_metrics_json(cpi, stat_val, bad, lumbar, curv, state._current_fps, avg_confidence, is_alert, history=state._cpi_history)
 
-    sparkline_html = _build_sparkline_html(state._cpi_history)
     return (
         out_rgb,
         metrics_json,
-        sparkline_html,
     )
 
 
@@ -478,7 +476,8 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
 def _build_metrics_json(cpi: float = 0, status: str = "NO DETECTADO",
                          bad_time: float = 0, lumbar: float = 0,
                          curv: float = 0, fps: float = 0,
-                         conf: float = 0.0, alert: bool = False) -> str:
+                         conf: float = 0.0, alert: bool = False,
+                         history: list = None) -> str:
     """Serializa métricas a JSON para el panel estático."""
     import json as _json
     palette = {
@@ -488,6 +487,8 @@ def _build_metrics_json(cpi: float = 0, status: str = "NO DETECTADO",
         "NO DETECTADO":   "#94a3b8",
         "NO INICIADO":    "#94a3b8",
     }
+    # history is list of (timestamp, cpi) tuples — send only cpi values to JS
+    history_values = [round(v, 1) for _, v in history] if history else []
     payload = _json.dumps({
         "cpi": round(cpi, 1),
         "status": status,
@@ -498,6 +499,7 @@ def _build_metrics_json(cpi: float = 0, status: str = "NO DETECTADO",
         "conf": round(conf, 3),
         "alert": alert,
         "color": palette.get(status, "#94a3b8"),
+        "history": history_values,
     })
     return f'<div id="pm-metrics-data-inner" style="display:none">{payload}</div>'
 
@@ -1161,6 +1163,29 @@ def _build_static_metrics_panel() -> str:
     <div style="font-size:12px;margin-top:8px;opacity:.88;position:relative;z-index:2" id="pm-status-detail">Coloquese frente a la camara para iniciar el monitoreo</div>
   </div>
 
+  <!-- ── SPARKLINE CPI ── -->
+  <div class="pm-card" style="margin-top:12px">
+    <div style="font-size:10px;color:var(--pm-text-3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">CPI — Últimos 60 segundos</div>
+    <svg id="pm-sparkline-svg" width="100%" height="64" viewBox="0 0 280 64" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#6366f1" stop-opacity="0.4"/>
+          <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- zona leve -->
+      <rect id="spark-zone-leve" x="0" y="0" width="280" height="64" fill="#f59e0b" opacity="0.06"/>
+      <!-- zona critica -->
+      <rect id="spark-zone-crit" x="0" y="0" width="280" height="64" fill="#ef4444" opacity="0.06"/>
+      <path id="spark-area" fill="url(#spark-grad)" d=""/>
+      <path id="spark-line" fill="none" stroke="#6366f1" stroke-width="1.5" d=""/>
+      <circle id="spark-dot" r="3" fill="#6366f1" cx="280" cy="32"/>
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--pm-text-3);margin-top:4px">
+      <span>60s atrás</span><span>ahora</span>
+    </div>
+  </div>
+
 </div>
 
 <div id="pm-alert-popup" class="pm-alert-popup" style="display:none">
@@ -1173,6 +1198,53 @@ def _build_static_metrics_panel() -> str:
   var CIRC = 326.73;
   var prevStatus = '';
   var alertTimer = null;
+  var prevValues = {};
+
+  function animateValue(el, newText) {
+    if (!el || el.textContent === newText) return;
+    el.style.transition = 'opacity 0.12s ease';
+    el.style.opacity = '0.2';
+    setTimeout(function() {
+      el.textContent = newText;
+      el.style.opacity = '1';
+    }, 120);
+  }
+
+  function drawSparkline(history, cpiBands) {
+    if (!history || history.length < 2) return;
+    var svg = document.getElementById('pm-sparkline-svg');
+    if (!svg) return;
+    var W = 280, H = 64, MAX = 100;
+    var n = history.length;
+    var pts = history.map(function(v, i) {
+      return [i / (n - 1) * W, H - (Math.min(Math.max(v, 0), MAX) / MAX) * H];
+    });
+
+    // Zonas
+    var leve = cpiBands ? cpiBands.leve : 35;
+    var crit = cpiBands ? cpiBands.crit : 50;
+    var yLeve = H - (leve / MAX) * H;
+    var yCrit = H - (crit / MAX) * H;
+    var zoneLeveEl = document.getElementById('spark-zone-leve');
+    var zoneCritEl = document.getElementById('spark-zone-crit');
+    if (zoneLeveEl) { zoneLeveEl.setAttribute('y', String(yCrit)); zoneLeveEl.setAttribute('height', String(yLeve - yCrit)); }
+    if (zoneCritEl) { zoneCritEl.setAttribute('y', '0'); zoneCritEl.setAttribute('height', String(yCrit)); }
+
+    // Line path
+    var d = pts.map(function(p, i) { return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' ');
+    var lineEl = document.getElementById('spark-line');
+    if (lineEl) lineEl.setAttribute('d', d);
+
+    // Area path (close to bottom)
+    var area = d + ' L' + pts[pts.length-1][0].toFixed(1) + ',' + H + ' L0,' + H + ' Z';
+    var areaEl = document.getElementById('spark-area');
+    if (areaEl) areaEl.setAttribute('d', area);
+
+    // Live dot
+    var last = pts[pts.length - 1];
+    var dotEl = document.getElementById('spark-dot');
+    if (dotEl) { dotEl.setAttribute('cx', last[0].toFixed(1)); dotEl.setAttribute('cy', last[1].toFixed(1)); }
+  }
 
   function updateMetrics(data) {
     var cpi     = data.cpi || 0;
@@ -1184,6 +1256,7 @@ def _build_static_metrics_panel() -> str:
     var conf    = data.conf || 0;
     var alert   = data.alert || false;
     var color   = data.color || '#94a3b8';
+    var history = data.history || [];
 
     // ── Gauge ──
     var pct = Math.min(Math.max(cpi, 0), 100) / 100;
@@ -1194,9 +1267,16 @@ def _build_static_metrics_panel() -> str:
       arc.setAttribute('stroke-dashoffset', String(targetOffset));
       arc.setAttribute('stroke', color);
     }
-    if (num) { num.textContent = cpi.toFixed(1); num.style.color = color; }
+    if (num) {
+      var newCpiText = cpi.toFixed(1);
+      if (num.textContent !== newCpiText) {
+        num.style.transition = 'color 0.3s ease, opacity 0.15s ease';
+        num.style.color = color;
+        animateValue(num, newCpiText);
+      }
+    }
 
-    // ── Textos ──
+    // ── Textos con animación suave ──
     var badgeEl   = document.getElementById('pm-badge');
     var lumbarEl  = document.getElementById('pm-lumbar');
     var curvEl    = document.getElementById('pm-curv');
@@ -1212,13 +1292,15 @@ def _build_static_metrics_panel() -> str:
     };
     if (badgeEl) {
       var bInfo = badgeMap[status] || ['badge-nd', status];
-      badgeEl.className = 'pm-badge ' + bInfo[0];
-      badgeEl.textContent = bInfo[1];
+      if (badgeEl.textContent !== bInfo[1]) {
+        badgeEl.className = 'pm-badge ' + bInfo[0];
+        badgeEl.textContent = bInfo[1];
+      }
     }
-    if (lumbarEl)  lumbarEl.textContent = lumbar.toFixed(0) + '°';
-    if (curvEl)    curvEl.textContent = curv.toFixed(1) + '%';
-    if (badTimeEl) badTimeEl.textContent = badTime.toFixed(0) + 's';
-    if (fpsEl)     fpsEl.textContent = fps.toFixed(0) + ' fps';
+    animateValue(lumbarEl,  lumbar.toFixed(0) + '°');
+    animateValue(curvEl,    curv.toFixed(1) + '%');
+    animateValue(badTimeEl, badTime.toFixed(0) + 's');
+    animateValue(fpsEl,     fps.toFixed(0) + ' fps');
 
     // ── Confidence bar ──
     var confPct = (conf * 100).toFixed(0);
@@ -1227,7 +1309,7 @@ def _build_static_metrics_panel() -> str:
     var confVal   = document.getElementById('pm-conf-val');
     var confBadge = document.getElementById('pm-conf-badge');
     if (confBar)   { confBar.style.width = confPct + '%'; confBar.style.background = confColor; }
-    if (confVal)   { confVal.textContent = confPct + '%'; confVal.style.color = confColor; }
+    if (confVal)   { animateValue(confVal, confPct + '%'); confVal.style.color = confColor; }
     if (confBadge) { confBadge.style.display = conf < 0.4 ? 'inline-block' : 'none'; }
 
     // ── Status card — solo cambiar clase si el status cambió ──
@@ -1253,7 +1335,7 @@ def _build_static_metrics_panel() -> str:
     if (iconEl && detailEl) {
       if (alert) {
         iconEl.innerHTML = '<span class="pm-live-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444"></span>ALERTA CRÍTICA';
-        detailEl.textContent = 'Mala postura acumulada: ' + badTime.toFixed(0) + 's · Corrija la posicion de su cabeza';
+        detailEl.textContent = 'Mala postura acumulada: ' + badTime.toFixed(0) + 's · Corrija la posición de su cabeza';
       } else if (status === 'ALERTA CRÍTICA') {
         iconEl.textContent = 'ALERTA CRÍTICA';
         detailEl.textContent = 'Protrusión cefálica severa detectada · ' + badTime.toFixed(0) + 's acumulados';
@@ -1273,7 +1355,8 @@ def _build_static_metrics_panel() -> str:
     var popup = document.getElementById('pm-alert-popup');
     if (popup) {
       if (alert) {
-        document.getElementById('pm-alert-title').textContent = '⚠ ALERTA: Mala postura ' + badTime.toFixed(0) + 's';
+        var titleEl = document.getElementById('pm-alert-title');
+        if (titleEl) titleEl.textContent = '⚠ ALERTA: Mala postura ' + badTime.toFixed(0) + 's';
         popup.className = 'pm-alert-popup';
         popup.style.display = 'block';
         clearTimeout(alertTimer);
@@ -1283,6 +1366,9 @@ def _build_static_metrics_panel() -> str:
         }, 4000);
       }
     }
+
+    // ── Sparkline ──
+    drawSparkline(history, null);
   }
 
   // ── Polling loop: lee el div oculto y actualiza el panel ──
@@ -1401,9 +1487,6 @@ def build_ui() -> gr.Blocks:
                 gr.HTML('<div class="pm-sidebar-title">Alerta Sonora</div>')
                 gr.HTML('<div class="pm-note">Se emite un beep cada 5 s cuando la mala postura supera 30 s de acumulación continua.</div>')
 
-                gr.HTML('<div class="pm-sidebar-title">CPI — Últimos 60 segundos</div>')
-                sparkline_display = gr.HTML('<div class="pm-sparkline-placeholder">Inicia el monitoreo para ver el gráfico...</div>')
-
                 gr.HTML('<div class="pm-sidebar-title">Grabación de Sesión</div>')
                 session_btn = gr.Button("▶ Iniciar sesión", variant="primary", size="sm")
                 session_status = gr.Markdown("_Sin sesión activa_")
@@ -1416,7 +1499,7 @@ def build_ui() -> gr.Blocks:
         webcam.stream(
             fn=process_frame,
             inputs=[webcam, model_dropdown],
-            outputs=[webcam, metrics_data, sparkline_display],
+            outputs=[webcam, metrics_data],
             stream_every=0.05,
             time_limit=None,
         )
