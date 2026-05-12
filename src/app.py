@@ -82,9 +82,10 @@ else:
     print("[INFO] Sin GPU CUDA — inferencia en CPU (FP32)")
 
 # Skip ratio: process every Nth frame through YOLO, skip remaining
-# GPU+FP16: skip 1/2 | GPU sin FP16: skip 1/3 | CPU: skip 1/4 (más agresivo)
+# GPU+FP16: skip 1 (cada frame) para máxima fluidez y uso completo de la GPU
+# GPU sin FP16: skip 1/2 | CPU: skip 1/4 (más agresivo)
 if DEVICE == "cuda":
-    SKIP_RATIO = 2 if USE_FP16 else 3
+    SKIP_RATIO = 1 if USE_FP16 else 2
 else:
     SKIP_RATIO = 4  # CPU necesita más skip para mantener fluidez
 
@@ -2137,7 +2138,7 @@ def build_ui() -> gr.Blocks:
             var sel = document.querySelector('.pm-lang-hidden select');
             if (!sel) return;
             sel.value = lang;
-            sel.dispatchEvent(new Event('input', { bubbles: true }));
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
             // Close popup
             document.getElementById('pm-gear-popup').style.display = 'none';
         };
@@ -2242,7 +2243,7 @@ def build_ui() -> gr.Blocks:
             fn=process_frame,
             inputs=[webcam, model_dropdown],
             outputs=[webcam, metrics_data],
-            stream_every=0.05,
+            stream_every=0.03,
             time_limit=None,
         )
 
