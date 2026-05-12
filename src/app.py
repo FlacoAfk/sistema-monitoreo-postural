@@ -918,71 +918,109 @@ CSS = """
     --color-text-body: #0f172a !important;
 }
 
-/* ── Floating tools (lang + theme toggle) bottom-right ── */
-.pm-floating-tools {
+/* ── Gear popup (bottom-right) ── */
+.gear-root {
     position: fixed !important;
-    bottom: 20px !important;
-    right: 20px !important;
+    bottom: 24px !important;
+    right: 24px !important;
     z-index: 9999 !important;
     width: auto !important;
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 8px !important;
-    align-items: center !important;
+    height: auto !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
 }
-.pm-floating-tools .gr-box {
-    margin: 0 !important;
-    border: none !important;
-    background: transparent !important;
-    box-shadow: none !important;
+#pm-gear-wrap { position: relative; }
+#pm-gear-icon {
+    font-size: 26px;
+    opacity: 0.4;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    display: block;
+    text-align: center;
+    line-height: 1;
+    user-select: none;
 }
-.pm-floating-tools select,
-.pm-floating-tools .gr-dropdown {
-    font-size: 12px !important;
-    padding: 4px 8px !important;
-    height: 32px !important;
-    min-height: 32px !important;
-    border-radius: 6px !important;
-    opacity: 0.8 !important;
+#pm-gear-icon:hover { opacity: 1; }
+#pm-gear-popup {
+    display: none;
+    position: absolute;
+    bottom: 40px;
+    right: 0;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--pm-surface);
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    min-width: 110px;
 }
-.pm-floating-tools select:hover,
-.pm-floating-tools .gr-dropdown:hover {
-    opacity: 1 !important;
-}
-.pm-float-theme-btn {
-    background: var(--pm-surface-2) !important;
-    border: 1px solid var(--pm-border) !important;
-    border-radius: 6px !important;
-    color: var(--pm-text-1) !important;
-    cursor: pointer !important;
-    font-size: 16px !important;
-    line-height: 1 !important;
-    padding: 4px 8px !important;
-    height: 32px !important;
-    width: 36px !important;
+.gear-root:hover #pm-gear-popup,
+#pm-gear-popup[style*="flex"] {
     display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    opacity: 0.8 !important;
-    transition: opacity 0.2s !important;
 }
-.pm-float-theme-btn:hover {
-    opacity: 1 !important;
-    background: var(--pm-surface) !important;
+.pm-gear-lang {
+    background: none !important;
+    border: none !important;
+    color: var(--pm-text-2) !important;
+    cursor: pointer !important;
+    font-size: 13px !important;
+    padding: 6px 10px !important;
+    border-radius: 6px !important;
+    text-align: left !important;
+    width: 100% !important;
+    transition: none !important;
 }
-:root[data-pm-theme="light"] .pm-float-theme-btn {
-    background: rgba(255,255,255,0.85) !important;
-    border-color: rgba(0,0,0,0.15) !important;
+.pm-gear-lang:hover {
+    background: var(--pm-surface-2) !important;
+    color: var(--pm-text-1) !important;
+}
+.pm-gear-divider {
+    height: 1px;
+    background: var(--pm-border);
+    margin: 2px 6px;
+}
+#pm-theme-toggle {
+    background: none !important;
+    border: none !important;
+    color: var(--pm-text-2) !important;
+    cursor: pointer !important;
+    font-size: 15px !important;
+    padding: 6px 10px !important;
+    border-radius: 6px !important;
+    width: 100% !important;
+    text-align: left !important;
+    transition: none !important;
+}
+#pm-theme-toggle:hover {
+    background: var(--pm-surface-2) !important;
+    color: var(--pm-text-1) !important;
+}
+:root[data-pm-theme="light"] .pm-gear-lang,
+:root[data-pm-theme="light"] #pm-theme-toggle {
+    color: #334155 !important;
+}
+:root[data-pm-theme="light"] .pm-gear-lang:hover,
+:root[data-pm-theme="light"] #pm-theme-toggle:hover {
+    background: rgba(0,0,0,0.05) !important;
     color: #0f172a !important;
 }
-:root[data-pm-theme="light"] .pm-float-theme-btn:hover {
+:root[data-pm-theme="light"] #pm-gear-popup {
     background: #ffffff !important;
-    border-color: rgba(0,0,0,0.3) !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
+}
+/* Hidden dropdown (kept for backend callback) */
+.pm-lang-hidden {
+    visibility: hidden !important;
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
 }
 
 * { box-sizing: border-box; }
@@ -2064,13 +2102,34 @@ def build_ui() -> gr.Blocks:
             var btn = document.getElementById('pm-theme-toggle');
             if (btn) btn.textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
             applyTextColors(next);
-            // Restaurar transiciones después del repaint
             requestAnimationFrame(function() {
                 requestAnimationFrame(function() {
                     restoreTransitions();
                 });
             });
         };
+        // ── Gear popup: toggle + lang ──
+        window.__pmTogglePopup = function() {
+            var p = document.getElementById('pm-gear-popup');
+            if (!p) return;
+            p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
+        };
+        window.__pmSetLang = function(lang) {
+            var sel = document.querySelector('.pm-lang-hidden select');
+            if (!sel) return;
+            sel.value = lang;
+            sel.dispatchEvent(new Event('input', { bubbles: true }));
+            // Close popup
+            document.getElementById('pm-gear-popup').style.display = 'none';
+        };
+        // Close popup on click outside
+        document.addEventListener('click', function(e) {
+            var w = document.getElementById('pm-gear-wrap');
+            var p = document.getElementById('pm-gear-popup');
+            if (p && p.style.display === 'flex' && w && !w.contains(e.target)) {
+                p.style.display = 'none';
+            }
+        });
     })();
     """
     # Light override CSS is injected via JS above (Gradio strips <style> from head param)
@@ -2082,17 +2141,27 @@ def build_ui() -> gr.Blocks:
 
         header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
 
-        # ── Floating tools: lang + theme (bottom-right) ──
-        with gr.Row(elem_classes=["pm-floating-tools"]):
+        # ── Floating gear popup (bottom-right) ──
+        with gr.Row(elem_classes=["gear-root"]):
+            gear_icon = gr.HTML('''
+<div id="pm-gear-wrap">
+    <span id="pm-gear-icon" onclick="__pmTogglePopup()">⚙️</span>
+    <div id="pm-gear-popup">
+        <button class="pm-gear-lang" onclick="__pmSetLang('es')">🇪🇸 ES</button>
+        <button class="pm-gear-lang" onclick="__pmSetLang('en')">🇬🇧 EN</button>
+        <button class="pm-gear-lang" onclick="__pmSetLang('pt')">🇧🇷 PT</button>
+        <div class="pm-gear-divider"></div>
+        <button id="pm-theme-toggle" onclick="window.__pmToggleTheme()">☀️</button>
+    </div>
+</div>
+            ''')
             lang_dropdown = gr.Dropdown(
                 choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
                 value=DEFAULT_LANG,
                 label=t0["lang_label"],
                 interactive=True,
-                container=True, show_label=False, scale=1,
-            )
-            theme_toggle = gr.HTML(
-                '<button id="pm-theme-toggle" class="pm-float-theme-btn" onclick="window.__pmToggleTheme()">☀️</button>'
+                container=True, show_label=False,
+                elem_classes=["pm-lang-hidden"],
             )
 
         with gr.Row():
