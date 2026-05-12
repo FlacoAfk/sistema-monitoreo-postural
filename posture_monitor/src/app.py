@@ -1567,6 +1567,21 @@ def _build_keypoints_table_html(lang: str = "es") -> str:
 </table>"""
 
 
+def _build_header_html(lang: str = "es") -> str:
+    """Genera el HTML del header traducido."""
+    t = LANGS.get(lang, LANGS["es"])
+    return f"""
+    <div class="pm-header">
+        <h1>{t['title']}</h1>
+        <p>{t['subtitle']}</p>
+        <span class="brand-line">
+            <span class="pm-live-dot"></span>
+            {t['brand']}
+        </span>
+    </div>
+    """
+
+
 # ── Idioma activo (módulo-level, leído por callbacks de sesión) ───────────────
 _current_lang: str = DEFAULT_LANG
 
@@ -1579,6 +1594,7 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
     btn_label = t["btn_stop"] if is_active else t["btn_start"]
     session_msg = t["session_active"] if is_active else t["session_idle"]
     return (
+        gr.update(value=_build_header_html(lang)),                    # header_html
         gr.update(value=_build_static_metrics_panel(lang)),           # metrics_panel
         gr.update(value=_build_threshold_table(leve, critico, lang)), # threshold_table
         gr.update(label=t["thresh_leve"]),                            # leve_slider
@@ -1591,6 +1607,9 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
         gr.update(label=t["model_label"]),                            # model_dropdown
         gr.update(label=t["webcam_label"]),                           # webcam
         gr.update(value=_build_keypoints_table_html(lang)),           # keypoints_table
+        gr.update(label=t["calib_title"]),                            # calib_accordion
+        gr.update(label=t["kp_title"]),                               # kp_accordion
+        gr.update(label=t["session_title"]),                          # session_accordion
     )
 
 
@@ -1622,16 +1641,7 @@ def build_ui() -> gr.Blocks:
         title="Monitoreo Postural — USCO 2026",
         head=head_script,
     ) as app:
-        gr.HTML(f"""
-        <div class="pm-header">
-            <h1>{t0['title']}</h1>
-            <p>{t0['subtitle']}</p>
-            <span class="brand-line">
-                <span class="pm-live-dot"></span>
-                {t0['brand']}
-            </span>
-        </div>
-        """)
+        header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
 
         session_state = gr.State(False)
 
@@ -1670,7 +1680,8 @@ def build_ui() -> gr.Blocks:
 
                 model_info = gr.Markdown(t0["model_info_def"])
 
-                with gr.Accordion(t0["calib_title"], open=False):
+                calib_accordion = gr.Accordion(t0["calib_title"], open=False)
+                with calib_accordion:
                     threshold_table = gr.HTML(_build_threshold_table(lang=DEFAULT_LANG))
                     leve_slider = gr.Slider(
                         minimum=10, maximum=80, value=35, step=1,
@@ -1682,7 +1693,8 @@ def build_ui() -> gr.Blocks:
                     )
                     threshold_msg = gr.Markdown(t0["thresh_hint"])
 
-                with gr.Accordion(t0["kp_title"], open=False):
+                kp_accordion = gr.Accordion(t0["kp_title"], open=False)
+                with kp_accordion:
                     keypoints_table = gr.HTML(_build_keypoints_table_html(DEFAULT_LANG))
 
             # ── DERECHA: solo métricas vivas + sesión ──
@@ -1693,7 +1705,8 @@ def build_ui() -> gr.Blocks:
                     elem_id="pm-metrics-data",
                 )
 
-                with gr.Accordion(t0["session_title"], open=True):
+                session_accordion = gr.Accordion(t0["session_title"], open=True)
+                with session_accordion:
                     session_btn = gr.Button(t0["btn_start"], variant="primary", size="sm")
                     session_status = gr.Markdown(t0["session_idle"])
                     export_btn = gr.Button(t0["export_btn"], variant="secondary", size="sm", visible=False)
@@ -1720,9 +1733,10 @@ def build_ui() -> gr.Blocks:
             fn=_on_lang_change,
             inputs=[lang_dropdown, leve_slider, critico_slider, session_state],
             outputs=[
-                metrics_panel, threshold_table, leve_slider, critico_slider,
+                header_html, metrics_panel, threshold_table, leve_slider, critico_slider,
                 session_btn, session_status, threshold_msg, export_file,
                 export_btn, model_dropdown, webcam, keypoints_table,
+                calib_accordion, kp_accordion, session_accordion,
             ],
         )
 
