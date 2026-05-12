@@ -928,7 +928,19 @@ CSS = """
     height: auto !important;
     background: transparent !important;
     border: none !important;
+    border-bottom: none !important;
+    outline: none !important;
     box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+.gear-root > div,
+.gear-root > * {
+    border: none !important;
+    border-bottom: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
     padding: 0 !important;
     margin: 0 !important;
 }
