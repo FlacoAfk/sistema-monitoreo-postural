@@ -130,6 +130,8 @@ Abrí el navegador en **http://127.0.0.1:7860**
 | **Umbrales configurables** | Sliders para ajustar CPI leve y crítico |
 | **Grabación de sesión** | Exporta CSV con métricas frame a frame |
 | **Idiomas** | Español 🇪🇸 / English 🇬🇧 / Português 🇧🇷 |
+| **Tema claro/oscuro** | Toggle con persistencia en localStorage |
+| **Optimización adaptativa** | Auto-detecta GPU/CPU y ajusta rendimiento |
 
 ### Benchmark de modelos
 
@@ -149,26 +151,49 @@ Genera overlays y JSON en `keypoint_output/`.
 
 ---
 
+## Rendimiento — Optimización adaptativa
+
+El sistema detecta automáticamente el hardware disponible y ajusta la configuración:
+
+| Hardware | FP16 | imgsz | Skip | FPS esperado |
+|----------|------|-------|------|--------------|
+| GPU NVIDIA (compute ≥ 6.0) | ✓ | 256px | 1/2 | 60-160 FPS |
+| GPU NVIDIA (compute < 6.0) | ✗ | 256px | 1/3 | 30-60 FPS |
+| CPU (cualquier) | ✗ | 192px | 1/4 | 8-20 FPS |
+
+**Optimizaciones GPU:**
+- FP16 half-precision (reduce cómputo ~40%)
+- cuDNN benchmark (auto-tuning de kernels CUDA)
+- Frame skipping inteligente con reutilización de overlay
+
+**Optimizaciones CPU:**
+- Tamaño de inferencia reducido (192px vs 256px)
+- Threads de PyTorch ajustados al número de cores
+- Skip más agresivo (1/4) para mantener fluidez
+
+El header del dashboard muestra el estado de hardware detectado:
+- `🟢 GPU: ... · FP16: ✓ · Skip: 1/2` — GPU con FP16 activo
+- `🟡 CPU (N cores) · FP32 · img:192px · Skip: 1/4` — modo CPU
+
+---
+
 ## Estructura del proyecto
 
 ```
 sistema-monitoreo-postural/
-├── posture_monitor/
-│   ├── src/
-│   │   ├── app.py                 # Dashboard Gradio (UI tiempo real)
-│   │   ├── inference_engine.py    # Motor YOLO-Pose (carga, inferencia, webcam)
-│   │   ├── posture_analyzer.py    # CPI — Combined Posture Index (5 keypoints)
-│   │   ├── model_benchmark.py     # Comparador de modelos
-│   │   └── test_system.py         # Tests del sistema
-│   ├── docs/
-│   │   └── INFORME_MODELO_MATEMATICO.md
-│   ├── requirements.txt
-│   ├── README.md
-│   └── MODELO_MATEMATICO_CPI.md
-├── yolov8n_pose_b16_lr05/         # Pesos del modelo (no incluidos en git)
-├── yolov5n_pose_b16_lr05/
-├── yolov26n_pose_b128_lr05/
-├── yolov11n_pose_b16_lr01/
+├── src/
+│   ├── app.py                 # Dashboard Gradio (UI tiempo real)
+│   ├── inference_engine.py    # Motor YOLO-Pose (carga, inferencia, webcam)
+│   ├── posture_analyzer.py    # CPI — Combined Posture Index (5 keypoints)
+│   ├── model_benchmark.py     # Comparador de modelos
+│   └── test_system.py         # Tests del sistema
+├── models/                    # Pesos entrenados (incluidos en el repo)
+├── docs/
+│   └── INFORME_MODELO_MATEMATICO.md
+├── requirements.txt
+├── validate_keypoints.py
+├── MODELO_MATEMATICO_CPI.md
+├── README.md
 └── .gitignore
 ```
 
