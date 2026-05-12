@@ -102,8 +102,7 @@ def run_benchmark(
     results: list[ModelBenchmarkEntry] = []
 
     for model_cfg in models:
-        model_dir = BASE_DIR / model_cfg["name"]
-        weight_path = model_dir / "weights" / model_cfg["weight"]
+        weight_path = MODELS_DIR / model_cfg["weight"]
 
         if not weight_path.exists():
             print(f"  ⚠ SKIP {model_cfg['name']}: no {model_cfg['weight']}")
