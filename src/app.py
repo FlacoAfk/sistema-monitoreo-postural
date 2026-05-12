@@ -2021,22 +2021,25 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
     )
 
 
-def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object]:
-    """Toggle start/stop sesión usando gr.State (no el label del botón)."""
+def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object, object, str]:
+    """Toggle start/stop sesión — exporta CSV automáticamente al detener."""
     t = LANGS.get(_current_lang, LANGS["es"])
     if is_active:
-        # Detener
+        # Detener — genera CSV automáticamente
         state.session_active = False
         summary = _compute_summary(state.session_data)
         summary_html = _build_summary_html(summary)
         n = len(state.session_data)
         msg = t["session_done"].format(n=n)
+        export_path, export_msg = _export_csv_file()
         return (
             False,
             t["btn_start"],
             msg,
             gr.update(visible=bool(summary_html), value=summary_html if summary_html else ""),
-            gr.update(visible=True),   # siempre mostrar export_btn al detener
+            gr.update(visible=bool(export_path)),   # export_btn
+            gr.update(value=export_path, visible=bool(export_path)),  # export_file
+            export_msg,                              # export_msg
         )
     else:
         # Iniciar
@@ -2044,7 +2047,7 @@ def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object]:
         state.session_frame_counter = 0
         state.session_active = True
         state.session_start_time = time.time()
-        return True, t["btn_stop"], t["session_active"], gr.update(visible=False, value=""), gr.update(visible=False)
+        return True, t["btn_stop"], t["session_active"], gr.update(visible=False, value=""), gr.update(visible=False), gr.update(visible=False), ""
 
 
 def build_ui() -> gr.Blocks:
@@ -2267,7 +2270,7 @@ def build_ui() -> gr.Blocks:
         session_btn.click(
             fn=_toggle_session,
             inputs=[session_state],
-            outputs=[session_state, session_btn, session_status, summary_display, export_btn],
+            outputs=[session_state, session_btn, session_status, summary_display, export_btn, export_file, export_msg],
         )
 
         export_btn.click(
