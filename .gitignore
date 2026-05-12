@@ -56,6 +56,18 @@ imagenes de pruebas del modelo matematico/
 */Box*.png
 */Pose*.png
 
+# ── Directorios de entrenamiento (pesos ya copiados a models/) ──
+yolov5n_pose_b16_lr05/
+yolov5m_pose_b32_lr01/
+yolov8n_pose_b16_lr05/
+yolov8s_pose_b8_lr05/
+yolov11n_pose_b16_lr01/
+yolov11s_pose_b32_lr05/
+yolov11m_pose_b64_lr01/
+yolov26n_pose_b128_lr05/
+yolov26s_pose_b64_lr03/
+yolov26m_pose_b16_lr03/
+
 # ── Obsolete files (old mentonian angle, replaced by CPI) ──
 validate_mentoniano.py
 verify_dataset_labels.py
