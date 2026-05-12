@@ -1013,17 +1013,23 @@ CSS = """
 }
 :root[data-pm-theme="light"] .pm-gear-lang,
 :root[data-pm-theme="light"] #pm-theme-toggle {
-    color: #334155 !important;
+    color: #475569 !important;
 }
 :root[data-pm-theme="light"] .pm-gear-lang:hover,
 :root[data-pm-theme="light"] #pm-theme-toggle:hover {
-    background: rgba(0,0,0,0.05) !important;
+    background: #f1f5f9 !important;
     color: #0f172a !important;
 }
 :root[data-pm-theme="light"] #pm-gear-popup {
     background: #ffffff !important;
-    border-color: #e2e8f0 !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.12) !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1) !important;
+}
+:root[data-pm-theme="light"] .pm-gear-divider {
+    background: #e2e8f0 !important;
+}
+:root[data-pm-theme="light"] #pm-gear-icon {
+    opacity: 0.55 !important;
 }
 /* Hidden dropdown (kept for backend callback) */
 .pm-lang-hidden {
