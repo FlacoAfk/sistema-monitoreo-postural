@@ -874,8 +874,6 @@ def _build_summary_html(summary: Optional[dict]) -> str:
 
 # ── CSS y tema ──────────────────────────────────────────────────────────────
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
-
 :root {
     --pm-bg: #0a0e1a;
     --pm-surface: rgba(15, 23, 42, 0.7);
@@ -1877,7 +1875,7 @@ def build_ui() -> gr.Blocks:
     })();
     """
     # Light override CSS is injected via JS above (Gradio strips <style> from head param)
-    head_script = f'<script>{theme_js}({METRICS_JS})();</script>'
+    head_script = f'<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap"><script>{theme_js}({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
     ) as app:
