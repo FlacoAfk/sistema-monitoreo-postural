@@ -918,31 +918,71 @@ CSS = """
     --color-text-body: #0f172a !important;
 }
 
-/* ── Theme toggle button (dentro del header) ── */
-.pm-header-theme-btn {
-    position: absolute !important;
-    top: 16px !important;
-    right: 16px !important;
-    background: var(--pm-surface);
-    border: 1px solid var(--pm-border);
-    border-radius: var(--pm-radius-sm);
-    color: var(--pm-text-1);
-    cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    padding: 6px 10px;
-    transition: background 0.2s, border-color 0.2s;
-    z-index: 10;
+/* ── Floating tools (lang + theme toggle) bottom-right ── */
+.pm-floating-tools {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    z-index: 9999 !important;
+    width: auto !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
-.pm-header-theme-btn:hover { background: var(--pm-surface-2); border-color: var(--pm-border-strong); }
-:root[data-pm-theme="light"] .pm-header-theme-btn {
-    background: #ffffff !important;
-    border-color: #cbd5e1 !important;
+.pm-floating-tools .gr-box {
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+.pm-floating-tools select,
+.pm-floating-tools .gr-dropdown {
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    border-radius: 6px !important;
+    opacity: 0.8 !important;
+}
+.pm-floating-tools select:hover,
+.pm-floating-tools .gr-dropdown:hover {
+    opacity: 1 !important;
+}
+.pm-float-theme-btn {
+    background: var(--pm-surface-2) !important;
+    border: 1px solid var(--pm-border) !important;
+    border-radius: 6px !important;
+    color: var(--pm-text-1) !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    padding: 4px 8px !important;
+    height: 32px !important;
+    width: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    opacity: 0.8 !important;
+    transition: opacity 0.2s !important;
+}
+.pm-float-theme-btn:hover {
+    opacity: 1 !important;
+    background: var(--pm-surface) !important;
+}
+:root[data-pm-theme="light"] .pm-float-theme-btn {
+    background: rgba(255,255,255,0.85) !important;
+    border-color: rgba(0,0,0,0.15) !important;
     color: #0f172a !important;
 }
-:root[data-pm-theme="light"] .pm-header-theme-btn:hover {
-    background: #f8fafc !important;
-    border-color: #94a3b8 !important;
+:root[data-pm-theme="light"] .pm-float-theme-btn:hover {
+    background: #ffffff !important;
+    border-color: rgba(0,0,0,0.3) !important;
 }
 
 * { box-sizing: border-box; }
@@ -1366,18 +1406,6 @@ body, html, .gradio-container {
     color: #334155 !important;
 }
 
-/* ── Lang row ── */
-.lang-row {
-    justify-content: flex-end !important;
-    margin-top: -10px !important;
-    margin-bottom: var(--pm-space-3) !important;
-}
-.lang-row .gr-dropdown {
-    margin: 0 !important;
-}
-.lang-row .gr-box {
-    margin: 0 !important;
-}
 /* ── Dropdown List Light Mode Fix ── */
 :root[data-pm-theme="light"] .gr-dropdown-list,
 :root[data-pm-theme="light"] ul.options,
@@ -1886,11 +1914,10 @@ def _build_keypoints_table_html(lang: str = "es") -> str:
 
 
 def _build_header_html(lang: str = "es") -> str:
-    """Genera el HTML del header traducido, con toggle de tema integrado."""
+    """Genera el HTML del header traducido."""
     t = LANGS.get(lang, LANGS["es"])
     return f"""
     <div class="pm-header">
-        <button id="pm-theme-toggle-header" class="pm-header-theme-btn" onclick="window.__pmToggleTheme()">☀️</button>
         <h1>{t['title']}</h1>
         <p>{t['subtitle']}</p>
         <span class="brand-line">
@@ -2034,7 +2061,7 @@ def build_ui() -> gr.Blocks:
             suppressAllTransitions();
             document.documentElement.setAttribute('data-pm-theme', next);
             localStorage.setItem('pm-theme', next);
-            var btn = document.getElementById('pm-theme-toggle-header');
+            var btn = document.getElementById('pm-theme-toggle');
             if (btn) btn.textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
             applyTextColors(next);
             // Restaurar transiciones después del repaint
@@ -2055,16 +2082,18 @@ def build_ui() -> gr.Blocks:
 
         header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
 
-        # ── Selector de idioma (en su propia fila) ──
-        with gr.Row(elem_classes=["lang-row"]):
-            with gr.Column(scale=0, min_width=200):
-                lang_dropdown = gr.Dropdown(
-                    choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
-                    value=DEFAULT_LANG,
-                    label=t0["lang_label"],
-                    interactive=True,
-                    container=True, show_label=False,
-                )
+        # ── Floating tools: lang + theme (bottom-right) ──
+        with gr.Row(elem_classes=["pm-floating-tools"]):
+            lang_dropdown = gr.Dropdown(
+                choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
+                value=DEFAULT_LANG,
+                label=t0["lang_label"],
+                interactive=True,
+                container=True, show_label=False, scale=1,
+            )
+            theme_toggle = gr.HTML(
+                '<button id="pm-theme-toggle" class="pm-float-theme-btn" onclick="window.__pmToggleTheme()">☀️</button>'
+            )
 
         with gr.Row():
             # ── IZQUIERDA: Video + historial + calibración + referencia ──
