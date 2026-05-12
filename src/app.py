@@ -918,8 +918,11 @@ CSS = """
     --color-text-body: #0f172a !important;
 }
 
-/* ── Theme toggle button ── */
-#pm-theme-toggle {
+/* ── Theme toggle button (dentro del header) ── */
+.pm-header-theme-btn {
+    position: absolute !important;
+    top: 16px !important;
+    right: 16px !important;
     background: var(--pm-surface);
     border: 1px solid var(--pm-border);
     border-radius: var(--pm-radius-sm);
@@ -929,8 +932,18 @@ CSS = """
     line-height: 1;
     padding: 6px 10px;
     transition: background 0.2s, border-color 0.2s;
+    z-index: 10;
 }
-#pm-theme-toggle:hover { background: var(--pm-surface-2); border-color: var(--pm-border-strong); }
+.pm-header-theme-btn:hover { background: var(--pm-surface-2); border-color: var(--pm-border-strong); }
+:root[data-pm-theme="light"] .pm-header-theme-btn {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+:root[data-pm-theme="light"] .pm-header-theme-btn:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+}
 
 * { box-sizing: border-box; }
 
@@ -944,6 +957,7 @@ body, html, .gradio-container {
 .gradio-container { max-width: 1400px !important; margin: 0 auto !important; padding: var(--pm-space-3) !important; }
 /* ── Header ── */
 .pm-header {
+    position: relative;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(6, 182, 212, 0.08));
     border: 1px solid var(--pm-border);
     border-radius: var(--pm-radius);
@@ -1352,63 +1366,17 @@ body, html, .gradio-container {
     color: #334155 !important;
 }
 
-/* ── Header Row: header + tools en la misma línea ── */
-.header-row {
-    align-items: flex-start !important;
-    gap: 12px !important;
+/* ── Lang row ── */
+.lang-row {
+    justify-content: flex-end !important;
+    margin-top: -10px !important;
     margin-bottom: var(--pm-space-3) !important;
 }
-.header-col {
-    flex: 1 !important;
-    min-width: 0 !important;
-}
-.header-col > * {
-    margin-top: 0 !important;
-}
-.tools-col {
-    min-width: 200px !important;
-    flex-shrink: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 6px !important;
-    padding-top: 4px !important;
-}
-.tools-col .gr-dropdown {
+.lang-row .gr-dropdown {
     margin: 0 !important;
 }
-.tools-col .gr-box {
+.lang-row .gr-box {
     margin: 0 !important;
-}
-
-#pm-theme-toggle {
-    background: var(--pm-surface-2) !important;
-    border: 1px solid var(--pm-border) !important;
-    border-radius: var(--pm-radius-sm) !important;
-    color: var(--pm-text-1) !important;
-    height: 42px !important;
-    width: 42px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 18px !important;
-    cursor: pointer !important;
-    transition: all 0.2s ease !important;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
-    margin-bottom: 2px !important;
-}
-#pm-theme-toggle:hover {
-    background: var(--pm-surface) !important;
-    border-color: var(--pm-border-strong) !important;
-    transform: translateY(-1px) !important;
-}
-:root[data-pm-theme="light"] #pm-theme-toggle {
-    background: #ffffff !important;
-    border-color: #cbd5e1 !important;
-    color: #0f172a !important;
-}
-:root[data-pm-theme="light"] #pm-theme-toggle:hover {
-    background: #f8fafc !important;
-    border-color: #94a3b8 !important;
 }
 /* ── Dropdown List Light Mode Fix ── */
 :root[data-pm-theme="light"] .gr-dropdown-list,
@@ -1918,10 +1886,11 @@ def _build_keypoints_table_html(lang: str = "es") -> str:
 
 
 def _build_header_html(lang: str = "es") -> str:
-    """Genera el HTML del header traducido."""
+    """Genera el HTML del header traducido, con toggle de tema integrado."""
     t = LANGS.get(lang, LANGS["es"])
     return f"""
     <div class="pm-header">
+        <button id="pm-theme-toggle-header" class="pm-header-theme-btn" onclick="window.__pmToggleTheme()">☀️</button>
         <h1>{t['title']}</h1>
         <p>{t['subtitle']}</p>
         <span class="brand-line">
@@ -1998,30 +1967,27 @@ def build_ui() -> gr.Blocks:
     t0 = LANGS[DEFAULT_LANG]
     theme_js = """
     (function(){
-        // ── Suprimir transiciones GLOBALMENTE antes de setear theme ──────────
-        // Esto evita el flash/flicker en TODOS los elementos al cambiar theme
+        // ── Suprimir transiciones con CSS injectado ──────────────────────────
+        // Un <style> cubre TODOS los elementos, incluso los que Gradio crea después
+        var __suppressStyle = null;
+
         function suppressAllTransitions() {
-            var allEls = document.querySelectorAll('.pm-leftcol *');
-            for (var i = 0; i < allEls.length; i++) {
-                allEls[i].style.setProperty('transition', 'none', 'important');
-            }
-            var container = document.querySelector('.pm-leftcol');
-            if (container) container.style.setProperty('transition', 'none', 'important');
+            if (__suppressStyle && __suppressStyle.parentNode) return;
+            __suppressStyle = document.createElement('style');
+            __suppressStyle.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; }';
+            document.head.appendChild(__suppressStyle);
         }
 
-        // ── Restaurar transiciones después de un repaint ─────────────────────
         function restoreTransitions() {
-            var allEls = document.querySelectorAll('.pm-leftcol *');
-            for (var i = 0; i < allEls.length; i++) {
-                allEls[i].style.removeProperty('transition');
+            if (__suppressStyle && __suppressStyle.parentNode) {
+                __suppressStyle.remove();
+                __suppressStyle = null;
             }
-            var container = document.querySelector('.pm-leftcol');
-            if (container) container.style.removeProperty('transition');
         }
 
         // ── Inicialización del theme ─────────────────────────────────────────
-        var saved = localStorage.getItem('pm-theme') || 'dark';
         suppressAllTransitions();
+        var saved = localStorage.getItem('pm-theme') || 'dark';
         document.documentElement.setAttribute('data-pm-theme', saved);
 
         function applyTextColors(theme) {
@@ -2068,7 +2034,7 @@ def build_ui() -> gr.Blocks:
             suppressAllTransitions();
             document.documentElement.setAttribute('data-pm-theme', next);
             localStorage.setItem('pm-theme', next);
-            var btn = document.getElementById('pm-theme-toggle');
+            var btn = document.getElementById('pm-theme-toggle-header');
             if (btn) btn.textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
             applyTextColors(next);
             // Restaurar transiciones después del repaint
@@ -2087,20 +2053,17 @@ def build_ui() -> gr.Blocks:
     ) as app:
         session_state = gr.State(False)
 
-        # ── Header + selector idioma + toggle tema (en UNA fila) ──
-        with gr.Row(elem_classes=["header-row"]):
-            with gr.Column(scale=5, min_width=0, elem_classes=["header-col"]):
-                header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
-            with gr.Column(scale=0, min_width=200, elem_classes=["tools-col"]):
+        header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
+
+        # ── Selector de idioma (en su propia fila) ──
+        with gr.Row(elem_classes=["lang-row"]):
+            with gr.Column(scale=0, min_width=200):
                 lang_dropdown = gr.Dropdown(
                     choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
                     value=DEFAULT_LANG,
                     label=t0["lang_label"],
                     interactive=True,
                     container=True, show_label=False,
-                )
-                theme_toggle = gr.HTML(
-                    '<button id="pm-theme-toggle" onclick="window.__pmToggleTheme()">☀️</button>'
                 )
 
         with gr.Row():
