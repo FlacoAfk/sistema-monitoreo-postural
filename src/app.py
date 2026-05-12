@@ -1404,6 +1404,19 @@ body, html, .gradio-container {
 :root[data-pm-theme="light"] .pm-leftcol .block .image-container,
 :root[data-pm-theme="light"] .pm-leftcol .block .upload-container { transition: none !important; }
 
+/* Fondo oscuro FIJO detrás del video (nunca cambia con el theme)
+   Evita que el fondo blanco se vea durante transiciones/reconexiones */
+.pm-leftcol .block .image-container,
+.pm-leftcol .block .upload-container {
+    background: #0f172a !important;
+}
+.pm-leftcol .block video {
+    background: #000000 !important;
+}
+.pm-leftcol .image-container img {
+    background: #0f172a !important;
+}
+
 /* Light mode: session panel */
 :root[data-pm-theme="light"] .gr-file { background: rgba(241, 245, 249, 0.9) !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
 :root[data-pm-theme="light"] .gr-markdown { color: #334155 !important; }
