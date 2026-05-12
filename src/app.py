@@ -898,7 +898,7 @@ CSS = """
     --pm-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-:root[data-theme="light"] {
+:root[data-pm-theme="light"] {
     --pm-bg: #f1f5f9;
     --pm-surface: rgba(255, 255, 255, 0.95);
     --pm-surface-2: rgba(241, 245, 249, 0.85);
@@ -934,8 +934,9 @@ CSS = """
 
 * { box-sizing: border-box; }
 
-body, .gradio-container {
+body, html, .gradio-container {
     background: var(--pm-bg) !important;
+    background-color: var(--pm-bg) !important;
     font-family: 'Inter', -apple-system, sans-serif !important;
     color: var(--pm-text-1) !important;
 }
@@ -1162,7 +1163,7 @@ body, .gradio-container {
 
 /* ── Gradio overrides ── */
 .gradio-html, .gr-block, .block { background: transparent !important; border: none !important; }
-.gr-label label { color: var(--pm-text-2) !important; font-size: 11px !important; font-weight: 600 !important; }
+.gr-block > label, .gr-label label, span.label, .block-title { color: var(--pm-accent) !important; font-size: 12px !important; font-weight: 700 !important; background: var(--pm-surface); padding: 4px 8px; border-radius: 4px; }
 .gr-button {
     background: linear-gradient(135deg, var(--pm-accent), #4f46e5) !important;
     border: none !important; border-radius: 8px !important;
@@ -1178,16 +1179,19 @@ body, .gradio-container {
 
 /* Accordion */
 .gr-accordion {
-    background: var(--pm-surface) !important;
-    border: 1px solid var(--pm-border) !important;
+    background: var(--pm-surface-2) !important;
+    border: 1px solid var(--pm-border-strong) !important;
     border-radius: var(--pm-radius-sm) !important;
     margin-bottom: var(--pm-space-2) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 .gr-accordion > button {
-    color: var(--pm-text-2) !important;
+    color: var(--pm-text-1) !important;
     font-weight: 600 !important;
     font-size: 12px !important;
     padding: 10px 14px !important;
+    background: var(--pm-surface) !important;
+    border-radius: var(--pm-radius-sm) !important;
 }
 
 /* Dropdown / Slider */
@@ -1222,77 +1226,252 @@ body, .gradio-container {
 .pm-leftcol > * { width: 100% !important; }
 
 /* ── Light mode: Gradio native element overrides ── */
-:root[data-theme="light"] .gradio-container,
-:root[data-theme="light"] body { background: var(--pm-bg) !important; color: var(--pm-text-1) !important; }
-:root[data-theme="light"] .block { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; }
-:root[data-theme="light"] input, :root[data-theme="light"] textarea,
-:root[data-theme="light"] select, :root[data-theme="light"] .wrap {
+:root[data-pm-theme="light"] .gradio-container,
+:root[data-pm-theme="light"] html,
+:root[data-pm-theme="light"] body { background: var(--pm-bg) !important; background-color: var(--pm-bg) !important; color: var(--pm-text-1) !important; }
+:root[data-pm-theme="light"] .block { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; }
+:root[data-pm-theme="light"] input, :root[data-pm-theme="light"] textarea,
+:root[data-pm-theme="light"] select, :root[data-pm-theme="light"] .wrap {
     background: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important;
 }
-:root[data-theme="light"] .label-wrap, :root[data-theme="light"] label { color: var(--pm-text-2) !important; }
-:root[data-theme="light"] .accordion { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; }
-:root[data-theme="light"] .gr-button.secondary { background: #e2e8f0 !important; color: #0f172a !important; }
-:root[data-theme="light"] .gr-button.secondary:hover { background: #cbd5e1 !important; }
-:root[data-theme="light"] .gr-input-label, :root[data-theme="light"] .gr-check-radio { color: var(--pm-text-1) !important; }
-:root[data-theme="light"] .markdown { color: var(--pm-text-2) !important; }
+:root[data-pm-theme="light"] .label-wrap, :root[data-pm-theme="light"] label { color: var(--pm-text-2) !important; }
+:root[data-pm-theme="light"] .accordion { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; }
+:root[data-pm-theme="light"] .gr-button.secondary { background: #e2e8f0 !important; color: #0f172a !important; }
+:root[data-pm-theme="light"] .gr-button.secondary:hover { background: #cbd5e1 !important; }
+:root[data-pm-theme="light"] .gr-input-label, :root[data-pm-theme="light"] .gr-check-radio { color: var(--pm-text-1) !important; }
+:root[data-pm-theme="light"] .markdown { color: var(--pm-text-2) !important; }
 
 /* ── Light mode: Custom metrics panel overrides ── */
 /* Gradio wraps gr.HTML in .prose which sets color via --body-text-color */
 /* Must use .prose ancestor + #id for specificity to win over Svelte scoped styles */
-:root[data-theme="light"] .prose #pm-metrics-root,
-:root[data-theme="light"] .prose #pm-metrics-root div,
-:root[data-theme="light"] .prose #pm-metrics-root span,
-:root[data-theme="light"] .prose #pm-metrics-root strong,
-:root[data-theme="light"] .prose #pm-metrics-root td,
-:root[data-theme="light"] .prose #pm-metrics-root th,
-:root[data-theme="light"] .prose #pm-metrics-root p,
-:root[data-theme="light"] .prose #pm-metrics-root table { color: #1e293b !important; }
-:root[data-theme="light"] .prose #pm-metrics-root .label,
-:root[data-theme="light"] .prose #pm-metrics-root .pm-gauge-sublabel,
-:root[data-theme="light"] .prose #pm-metrics-root .pm-status-detail { color: #475569 !important; }
-:root[data-theme="light"] .prose #pm-metrics-root .pm-section-title { color: #4f46e5 !important; }
+:root[data-pm-theme="light"] .prose #pm-metrics-root,
+:root[data-pm-theme="light"] .prose #pm-metrics-root div,
+:root[data-pm-theme="light"] .prose #pm-metrics-root span,
+:root[data-pm-theme="light"] .prose #pm-metrics-root strong,
+:root[data-pm-theme="light"] .prose #pm-metrics-root td,
+:root[data-pm-theme="light"] .prose #pm-metrics-root th,
+:root[data-pm-theme="light"] .prose #pm-metrics-root p,
+:root[data-pm-theme="light"] .prose #pm-metrics-root table { color: #1e293b !important; }
+:root[data-pm-theme="light"] .prose #pm-metrics-root .label,
+:root[data-pm-theme="light"] .prose #pm-metrics-root .pm-gauge-sublabel,
+:root[data-pm-theme="light"] .prose #pm-metrics-root .pm-status-detail { color: #475569 !important; }
+:root[data-pm-theme="light"] .prose #pm-metrics-root .pm-section-title { color: #4f46e5 !important; }
 
 /* Light mode: tables */
-:root[data-theme="light"] .pm-table { color: #1e293b !important; }
-:root[data-theme="light"] .pm-table td { color: #1e293b !important; border-color: rgba(0, 0, 0, 0.08) !important; }
-:root[data-theme="light"] .pm-table strong { color: #0f172a !important; }
+:root[data-pm-theme="light"] .pm-table { color: #1e293b !important; }
+:root[data-pm-theme="light"] .pm-table td { color: #1e293b !important; border-color: rgba(0, 0, 0, 0.08) !important; }
+:root[data-pm-theme="light"] .pm-table strong { color: #0f172a !important; }
 
 /* Light mode: badges */
-:root[data-theme="light"] .badge-ok { background: rgba(34, 197, 94, 0.15) !important; color: #15803d !important; border-color: rgba(34, 197, 94, 0.4) !important; }
-:root[data-theme="light"] .badge-warn { background: rgba(245, 158, 11, 0.15) !important; color: #b45309 !important; border-color: rgba(245, 158, 11, 0.4) !important; }
-:root[data-theme="light"] .badge-crit { background: rgba(239, 68, 68, 0.15) !important; color: #dc2626 !important; border-color: rgba(239, 68, 68, 0.4) !important; }
-:root[data-theme="light"] .badge-nd { background: rgba(100, 116, 139, 0.1) !important; color: #475569 !important; border-color: rgba(100, 116, 139, 0.3) !important; }
+:root[data-pm-theme="light"] .badge-ok { background: rgba(34, 197, 94, 0.15) !important; color: #15803d !important; border-color: rgba(34, 197, 94, 0.4) !important; }
+:root[data-pm-theme="light"] .badge-warn { background: rgba(245, 158, 11, 0.15) !important; color: #b45309 !important; border-color: rgba(245, 158, 11, 0.4) !important; }
+:root[data-pm-theme="light"] .badge-crit { background: rgba(239, 68, 68, 0.15) !important; color: #dc2626 !important; border-color: rgba(239, 68, 68, 0.4) !important; }
+:root[data-pm-theme="light"] .badge-nd { background: rgba(100, 116, 139, 0.1) !important; color: #475569 !important; border-color: rgba(100, 116, 139, 0.3) !important; }
 
 /* Light mode: sparkline */
-:root[data-theme="light"] .pm-sparkline-wrap { background: rgba(241, 245, 249, 0.9) !important; }
-:root[data-theme="light"] #pm-sparkline-svg text { fill: #475569 !important; }
+:root[data-pm-theme="light"] .pm-sparkline-wrap { background: rgba(241, 245, 249, 0.9) !important; }
+:root[data-pm-theme="light"] #pm-sparkline-svg text { fill: #475569 !important; }
 
 /* Light mode: header */
-:root[data-theme="light"] .pm-header {
+:root[data-pm-theme="light"] .pm-header {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.05)) !important;
     border-color: rgba(99, 102, 241, 0.2) !important;
 }
-:root[data-theme="light"] .pm-header h1 { color: #0f172a !important; }
-:root[data-theme="light"] .pm-header p { color: #334155 !important; }
-:root[data-theme="light"] .pm-header .brand-line { color: #475569 !important; }
+:root[data-pm-theme="light"] .pm-header h1 { color: #0f172a !important; }
+:root[data-pm-theme="light"] .pm-header p { color: #334155 !important; }
+:root[data-pm-theme="light"] .pm-header .brand-line { color: #475569 !important; }
 
 /* Light mode: accordion & buttons */
-:root[data-theme="light"] .gr-accordion { background: rgba(255, 255, 255, 0.9) !important; border-color: rgba(99, 102, 241, 0.2) !important; }
-:root[data-theme="light"] .gr-accordion > button { color: #1e293b !important; }
-:root[data-theme="light"] .gr-dropdown select { background: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
-:root[data-theme="light"] .gr-button-secondary { background: #e2e8f0 !important; color: #1e293b !important; border-color: #cbd5e1 !important; }
+:root[data-pm-theme="light"] .gr-accordion { background: rgba(255, 255, 255, 0.9) !important; border-color: rgba(99, 102, 241, 0.2) !important; }
+:root[data-pm-theme="light"] .gr-accordion > button { color: #1e293b !important; }
+:root[data-pm-theme="light"] .gr-dropdown select { background: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
+:root[data-pm-theme="light"] .gr-button-secondary { background: #e2e8f0 !important; color: #1e293b !important; border-color: #cbd5e1 !important; }
 
 /* Light mode: video container — prevent flicker on theme switch */
-:root[data-theme="light"] .pm-leftcol .block { background: #1e293b !important; border-color: rgba(99, 102, 241, 0.2) !important; }
-:root[data-theme="light"] .pm-leftcol .block video,
-:root[data-theme="light"] .pm-leftcol .block img,
-:root[data-theme="light"] .pm-leftcol .block .image-container,
-:root[data-theme="light"] .pm-leftcol .block .upload-container { transition: none !important; }
+:root[data-pm-theme="light"] .pm-leftcol .block { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; color: var(--pm-text-1) !important; }
+:root[data-pm-theme="light"] .pm-leftcol .block video,
+:root[data-pm-theme="light"] .pm-leftcol .block img,
+:root[data-pm-theme="light"] .pm-leftcol .block .image-container,
+:root[data-pm-theme="light"] .pm-leftcol .block .upload-container { transition: none !important; }
 
 /* Light mode: session panel */
-:root[data-theme="light"] .gr-file { background: rgba(241, 245, 249, 0.9) !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
-:root[data-theme="light"] .gr-markdown { color: #334155 !important; }
+:root[data-pm-theme="light"] .gr-file { background: rgba(241, 245, 249, 0.9) !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
+:root[data-pm-theme="light"] .gr-markdown { color: #334155 !important; }
 
+
+/* ── Light mode: Forzar reset en contenedores nativos ── */
+:root[data-pm-theme="light"] .pm-leftcol .block,
+:root[data-pm-theme="light"] .pm-leftcol .gr-block,
+:root[data-pm-theme="light"] .pm-leftcol .gr-box,
+:root[data-pm-theme="light"] .pm-leftcol .gr-panel,
+:root[data-pm-theme="light"] .gr-accordion,
+:root[data-pm-theme="light"] .gr-dropdown {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+}
+
+:root[data-pm-theme="light"] .gr-dropdown select,
+:root[data-pm-theme="light"] .gr-accordion > button {
+    background: #f8fafc !important;
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+}
+
+:root[data-pm-theme="light"] .gr-block > label, 
+:root[data-pm-theme="light"] .gr-label label, 
+:root[data-pm-theme="light"] span.label, 
+:root[data-pm-theme="light"] .block-title { 
+    color: #4f46e5 !important;
+    background: #f1f5f9 !important;
+}
+
+/* ── Light mode: Forzar textos legibles ── */
+:root[data-pm-theme="light"] .pm-leftcol,
+:root[data-pm-theme="light"] .pm-leftcol .markdown, 
+:root[data-pm-theme="light"] .pm-leftcol .gr-markdown, 
+:root[data-pm-theme="light"] .pm-leftcol .prose, 
+:root[data-pm-theme="light"] .pm-leftcol p,
+:root[data-pm-theme="light"] .pm-leftcol td,
+:root[data-pm-theme="light"] .pm-leftcol th,
+:root[data-pm-theme="light"] .pm-leftcol span,
+:root[data-pm-theme="light"] .gr-accordion,
+:root[data-pm-theme="light"] .gr-accordion .markdown,
+:root[data-pm-theme="light"] .gr-accordion p,
+:root[data-pm-theme="light"] .gr-accordion td,
+:root[data-pm-theme="light"] .gr-accordion th,
+:root[data-pm-theme="light"] .gr-form-info,
+:root[data-pm-theme="light"] .gr-text-sm,
+:root[data-pm-theme="light"] span[data-testid="block-info"] {
+    color: #0f172a !important;
+}
+
+:root[data-pm-theme="light"] .pm-leftcol .gr-form-info,
+:root[data-pm-theme="light"] .pm-leftcol span.text-sm,
+:root[data-pm-theme="light"] .gr-input-label span {
+    color: #334155 !important;
+}
+
+/* ── Header Row: header + tools en la misma línea ── */
+.header-row {
+    align-items: flex-start !important;
+    gap: 12px !important;
+    margin-bottom: var(--pm-space-3) !important;
+}
+.header-col {
+    flex: 1 !important;
+    min-width: 0 !important;
+}
+.header-col > * {
+    margin-top: 0 !important;
+}
+.tools-col {
+    min-width: 200px !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    padding-top: 4px !important;
+}
+.tools-col .gr-dropdown {
+    margin: 0 !important;
+}
+.tools-col .gr-box {
+    margin: 0 !important;
+}
+
+#pm-theme-toggle {
+    background: var(--pm-surface-2) !important;
+    border: 1px solid var(--pm-border) !important;
+    border-radius: var(--pm-radius-sm) !important;
+    color: var(--pm-text-1) !important;
+    height: 42px !important;
+    width: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 18px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+    margin-bottom: 2px !important;
+}
+#pm-theme-toggle:hover {
+    background: var(--pm-surface) !important;
+    border-color: var(--pm-border-strong) !important;
+    transform: translateY(-1px) !important;
+}
+:root[data-pm-theme="light"] #pm-theme-toggle {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+:root[data-pm-theme="light"] #pm-theme-toggle:hover {
+    background: #f8fafc !important;
+    border-color: #94a3b8 !important;
+}
+/* ── Dropdown List Light Mode Fix ── */
+:root[data-pm-theme="light"] .gr-dropdown-list,
+:root[data-pm-theme="light"] ul.options,
+:root[data-pm-theme="light"] .options {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+:root[data-pm-theme="light"] .gr-dropdown-list li,
+:root[data-pm-theme="light"] ul.options li,
+:root[data-pm-theme="light"] .options li {
+    color: #0f172a !important;
+}
+:root[data-pm-theme="light"] .gr-dropdown-list li:hover,
+:root[data-pm-theme="light"] ul.options li:hover,
+:root[data-pm-theme="light"] .options li:hover,
+:root[data-pm-theme="light"] .gr-dropdown-list li.selected,
+:root[data-pm-theme="light"] ul.options li.selected {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+/* ── Prevent Video Flicker ── */
+.pm-leftcol .image-frame,
+.pm-leftcol .image-container,
+.pm-leftcol img,
+.pm-leftcol video,
+.pm-leftcol [data-testid="image"] {
+    background-color: transparent !important;
+    transition: none !important;
+    animation: none !important;
+}
+
+/* ── Text Alignment ── */
+.center-text, .center-text p, .center-text .prose, .center-text .gr-markdown {
+    text-align: center !important;
+}
+
+/* ── Dialog and Config Modals Light Mode Fix ── */
+:root[data-pm-theme="light"] dialog,
+:root[data-pm-theme="light"] .modal,
+:root[data-pm-theme="light"] .gr-dialog,
+:root[data-pm-theme="light"] [role="dialog"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+}
+:root[data-pm-theme="light"] dialog *,
+:root[data-pm-theme="light"] .modal *,
+:root[data-pm-theme="light"] .gr-dialog *,
+:root[data-pm-theme="light"] [role="dialog"] * {
+    color: #0f172a !important;
+}
+:root[data-pm-theme="light"] dialog button:hover,
+:root[data-pm-theme="light"] .modal button:hover,
+:root[data-pm-theme="light"] .gr-dialog button:hover,
+:root[data-pm-theme="light"] [role="dialog"] button:hover {
+    background-color: #f1f5f9 !important;
+}
 """
 
 THEME = gr.themes.Base(
@@ -1513,29 +1692,29 @@ def _build_metrics_js() -> str:
     // Inject light mode CSS once (must be done after Gradio finishes DOM setup)
     if (!__lightCssInjected) {{
       var s = document.createElement('style');
-      s.textContent = ':root[data-theme="light"] #pm-metrics-root,' +
-        ':root[data-theme="light"] #pm-metrics-root div,' +
-        ':root[data-theme="light"] #pm-metrics-root span,' +
-        ':root[data-theme="light"] #pm-metrics-root strong,' +
-        ':root[data-theme="light"] #pm-metrics-root td,' +
-        ':root[data-theme="light"] #pm-metrics-root th,' +
-        ':root[data-theme="light"] #pm-metrics-root p,' +
-        ':root[data-theme="light"] #pm-metrics-root table {{ color: #1e293b !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .label,' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-gauge-sublabel,' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-status-detail {{ color: #475569 !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-section-title {{ color: #4f46e5 !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-conf-track {{ background: rgba(0,0,0,0.06) !important; border-color: rgba(0,0,0,0.08) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-card {{ background: rgba(255,255,255,0.92) !important; border-color: rgba(99,102,241,0.25) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-metric-item {{ background: rgba(241,245,249,0.9) !important; border-color: rgba(99,102,241,0.2) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-status-nd {{ background: rgba(148,163,184,0.1) !important; border-color: rgba(100,116,139,0.3) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-status-ok {{ background: rgba(34,197,94,0.1) !important; border-color: rgba(34,197,94,0.4) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-status-warn {{ background: rgba(245,158,11,0.1) !important; border-color: rgba(245,158,11,0.4) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .pm-status-crit {{ background: rgba(239,68,68,0.1) !important; border-color: rgba(239,68,68,0.4) !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .badge-ok {{ background: rgba(34,197,94,0.15) !important; color: #15803d !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .badge-warn {{ background: rgba(245,158,11,0.15) !important; color: #b45309 !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .badge-crit {{ background: rgba(239,68,68,0.15) !important; color: #dc2626 !important; }}' +
-        ':root[data-theme="light"] #pm-metrics-root .badge-nd {{ background: rgba(100,116,139,0.1) !important; color: #475569 !important; }}';
+      s.textContent = ':root[data-pm-theme="light"] #pm-metrics-root,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root div,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root span,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root strong,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root td,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root th,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root p,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root table {{ color: #1e293b !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .label,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-gauge-sublabel,' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-status-detail {{ color: #475569 !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-section-title {{ color: #4f46e5 !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-conf-track {{ background: rgba(0,0,0,0.06) !important; border-color: rgba(0,0,0,0.08) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-card {{ background: rgba(255,255,255,0.92) !important; border-color: rgba(99,102,241,0.25) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-metric-item {{ background: rgba(241,245,249,0.9) !important; border-color: rgba(99,102,241,0.2) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-status-nd {{ background: rgba(148,163,184,0.1) !important; border-color: rgba(100,116,139,0.3) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-status-ok {{ background: rgba(34,197,94,0.1) !important; border-color: rgba(34,197,94,0.4) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-status-warn {{ background: rgba(245,158,11,0.1) !important; border-color: rgba(245,158,11,0.4) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .pm-status-crit {{ background: rgba(239,68,68,0.1) !important; border-color: rgba(239,68,68,0.4) !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .badge-ok {{ background: rgba(34,197,94,0.15) !important; color: #15803d !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .badge-warn {{ background: rgba(245,158,11,0.15) !important; color: #b45309 !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .badge-crit {{ background: rgba(239,68,68,0.15) !important; color: #dc2626 !important; }}' +
+        ':root[data-pm-theme="light"] #pm-metrics-root .badge-nd {{ background: rgba(100,116,139,0.1) !important; color: #475569 !important; }}';
       document.body.appendChild(s);
       __lightCssInjected = true;
     }}
@@ -1784,6 +1963,7 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
         gr.update(label=t["calib_title"]),                            # calib_accordion
         gr.update(label=t["kp_title"]),                               # kp_accordion
         gr.update(label=t["session_title"]),                          # session_accordion
+        gr.update(value=t["model_info_def"]),                         # model_info
     )
 
 
@@ -1818,9 +1998,32 @@ def build_ui() -> gr.Blocks:
     t0 = LANGS[DEFAULT_LANG]
     theme_js = """
     (function(){
+        // ── Suprimir transiciones GLOBALMENTE antes de setear theme ──────────
+        // Esto evita el flash/flicker en TODOS los elementos al cambiar theme
+        function suppressAllTransitions() {
+            var allEls = document.querySelectorAll('.pm-leftcol *');
+            for (var i = 0; i < allEls.length; i++) {
+                allEls[i].style.setProperty('transition', 'none', 'important');
+            }
+            var container = document.querySelector('.pm-leftcol');
+            if (container) container.style.setProperty('transition', 'none', 'important');
+        }
+
+        // ── Restaurar transiciones después de un repaint ─────────────────────
+        function restoreTransitions() {
+            var allEls = document.querySelectorAll('.pm-leftcol *');
+            for (var i = 0; i < allEls.length; i++) {
+                allEls[i].style.removeProperty('transition');
+            }
+            var container = document.querySelector('.pm-leftcol');
+            if (container) container.style.removeProperty('transition');
+        }
+
+        // ── Inicialización del theme ─────────────────────────────────────────
         var saved = localStorage.getItem('pm-theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', saved);
-        
+        suppressAllTransitions();
+        document.documentElement.setAttribute('data-pm-theme', saved);
+
         function applyTextColors(theme) {
             var root = document.getElementById('pm-metrics-root');
             if (!root) return;
@@ -1842,35 +2045,38 @@ def build_ui() -> gr.Blocks:
             }
             root.style.setProperty('color', color, 'important');
         }
-        
-        // Apply on load after Gradio renders
-        function tryApply() { applyTextColors(localStorage.getItem('pm-theme') || 'dark'); }
+
+        // ── Apply on load after Gradio renders ───────────────────────────────
+        function tryApply() {
+            var theme = localStorage.getItem('pm-theme') || 'dark';
+            applyTextColors(theme);
+            restoreTransitions();
+        }
+        // Primero restauramos transiciones después del primer repaint
+        requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+                restoreTransitions();
+            });
+        });
         setTimeout(tryApply, 500);
         setTimeout(tryApply, 1500);
         setTimeout(tryApply, 3000);
-        
+
         window.__pmToggleTheme = function() {
-            var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+            var cur = document.documentElement.getAttribute('data-pm-theme') || 'dark';
             var next = cur === 'dark' ? 'light' : 'dark';
-            // Suppress transitions on video container to prevent flicker
-            var videoBlock = document.querySelector('.pm-leftcol .block');
-            var allTransitionEls = videoBlock ? videoBlock.querySelectorAll('*') : [];
-            if (videoBlock) videoBlock.style.setProperty('transition', 'none', 'important');
-            for (var t = 0; t < allTransitionEls.length; t++) {
-                allTransitionEls[t].style.setProperty('transition', 'none', 'important');
-            }
-            document.documentElement.setAttribute('data-theme', next);
+            suppressAllTransitions();
+            document.documentElement.setAttribute('data-pm-theme', next);
             localStorage.setItem('pm-theme', next);
             var btn = document.getElementById('pm-theme-toggle');
             if (btn) btn.textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
             applyTextColors(next);
-            // Re-enable transitions after repaint
-            setTimeout(function() {
-                if (videoBlock) videoBlock.style.removeProperty('transition');
-                for (var t = 0; t < allTransitionEls.length; t++) {
-                    allTransitionEls[t].style.removeProperty('transition');
-                }
-            }, 50);
+            // Restaurar transiciones después del repaint
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    restoreTransitions();
+                });
+            });
         };
     })();
     """
@@ -1879,23 +2085,20 @@ def build_ui() -> gr.Blocks:
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
     ) as app:
-        header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
-
         session_state = gr.State(False)
 
-        # ── Selector de idioma + toggle tema (top-right) ──
-        with gr.Row():
-            with gr.Column(scale=5):
-                pass  # spacer
-            with gr.Column(scale=1, min_width=160):
+        # ── Header + selector idioma + toggle tema (en UNA fila) ──
+        with gr.Row(elem_classes=["header-row"]):
+            with gr.Column(scale=5, min_width=0, elem_classes=["header-col"]):
+                header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
+            with gr.Column(scale=0, min_width=200, elem_classes=["tools-col"]):
                 lang_dropdown = gr.Dropdown(
                     choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
                     value=DEFAULT_LANG,
                     label=t0["lang_label"],
                     interactive=True,
-                    container=False,
+                    container=True, show_label=False,
                 )
-            with gr.Column(scale=0, min_width=50):
                 theme_toggle = gr.HTML(
                     '<button id="pm-theme-toggle" onclick="window.__pmToggleTheme()">☀️</button>'
                 )
@@ -1920,7 +2123,7 @@ def build_ui() -> gr.Blocks:
                         interactive=True,
                     )
 
-                model_info = gr.Markdown(t0["model_info_def"])
+                model_info = gr.Markdown(t0["model_info_def"], elem_classes=["center-text"])
 
                 calib_accordion = gr.Accordion(t0["calib_title"], open=False)
                 with calib_accordion:
@@ -1978,7 +2181,7 @@ def build_ui() -> gr.Blocks:
                 header_html, metrics_panel, threshold_table, leve_slider, critico_slider,
                 session_btn, session_status, threshold_msg, export_file,
                 export_btn, model_dropdown, webcam, keypoints_table,
-                calib_accordion, kp_accordion, session_accordion,
+                calib_accordion, kp_accordion, session_accordion, model_info,
             ],
         )
 
