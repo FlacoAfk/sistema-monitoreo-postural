@@ -1623,7 +1623,13 @@ def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object]:
         summary_html = _build_summary_html(summary)
         n = len(state.session_data)
         msg = t["session_done"].format(n=n)
-        return False, t["btn_start"], msg, gr.update(visible=bool(summary_html), value=summary_html if summary_html else ""), gr.update(visible=n > 0)
+        return (
+            False,
+            t["btn_start"],
+            msg,
+            gr.update(visible=bool(summary_html), value=summary_html if summary_html else ""),
+            gr.update(visible=True),   # siempre mostrar export_btn al detener
+        )
     else:
         # Iniciar
         state.session_data = []
