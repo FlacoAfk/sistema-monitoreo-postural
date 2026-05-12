@@ -1880,7 +1880,6 @@ def build_ui() -> gr.Blocks:
     head_script = f'<script>{theme_js}({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
-        head=head_script,
     ) as app:
         header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
 
@@ -2008,7 +2007,7 @@ def build_ui() -> gr.Blocks:
             outputs=[threshold_table, threshold_msg],
         )
 
-        return app
+        return app, head_script
 
 
 # ── Limpieza de cache ────────────────────────────────────────────────────────
@@ -2031,7 +2030,7 @@ if __name__ == "__main__":
     state.load_model(MODEL_CONFIGS[0]["path"])
     print("[INIT] Modelo listo. Iniciando servidor Gradio...\n")
 
-    app = build_ui()
+    app, head_script = build_ui()
     app.launch(
         server_name="0.0.0.0",
         server_port=7860,
@@ -2040,6 +2039,7 @@ if __name__ == "__main__":
         prevent_thread_lock=True,
         css=CSS,
         theme=THEME,
+        head=head_script,
     )
 
     # Mantener el proceso vivo mientras el servidor corre
