@@ -115,6 +115,18 @@ LANGS: dict[str, dict[str, str]] = {
         "js_max_cpi":     "CPI máximo",
         "js_min_cpi":     "CPI mínimo",
         "js_bad_total":   "Tiempo mala postura",
+        # Python-side strings
+        "webcam_label":   "Cámara en Vivo",
+        "model_info_sel": "Selecciona el modelo para inferencia",
+        "export_no_data": "⚠ No hay datos en la sesión actual. Inicia el monitoreo primero.",
+        "export_buf_warn":"⚠ Buffer muy grande ({n} filas). Exportando de todas formas...",
+        "export_success": "✓ CSV exportado: {fname} ({n} filas)",
+        "kp_col_name":    "Nombre",
+        "kp_col_loc":     "Ubicación",
+        "thresh_col_status":  "Estado",
+        "thresh_col_meaning": "Significado",
+        "kp_locations": ["Occipital", "C7 cervical", "Acromion", "Espalda media",
+                         "Cadera", "Cervical media", "Mandíbula", "Mentón", "Escápula"],
     },
     "en": {
         "title":          "Real-Time Postural Monitoring System",
@@ -180,6 +192,18 @@ LANGS: dict[str, dict[str, str]] = {
         "js_max_cpi":     "Max CPI",
         "js_min_cpi":     "Min CPI",
         "js_bad_total":   "Bad posture time",
+        # Python-side strings
+        "webcam_label":   "Live Camera",
+        "model_info_sel": "Select model for inference",
+        "export_no_data": "⚠ No session data. Start monitoring first.",
+        "export_buf_warn":"⚠ Large buffer ({n} rows). Exporting anyway...",
+        "export_success": "✓ CSV exported: {fname} ({n} rows)",
+        "kp_col_name":    "Name",
+        "kp_col_loc":     "Location",
+        "thresh_col_status":  "Status",
+        "thresh_col_meaning": "Meaning",
+        "kp_locations": ["Occipital", "C7 cervical", "Acromion", "Mid-back",
+                         "Hip", "Mid-cervical", "Jaw", "Chin", "Scapula"],
     },
     "pt": {
         "title":          "Sistema de Monitoramento Postural em Tempo Real",
@@ -245,6 +269,18 @@ LANGS: dict[str, dict[str, str]] = {
         "js_max_cpi":     "CPI máximo",
         "js_min_cpi":     "CPI mínimo",
         "js_bad_total":   "Tempo de má postura",
+        # Python-side strings
+        "webcam_label":   "Câmera ao Vivo",
+        "model_info_sel": "Selecione o modelo para inferência",
+        "export_no_data": "⚠ Sem dados na sessão atual. Inicie o monitoramento primeiro.",
+        "export_buf_warn":"⚠ Buffer muito grande ({n} linhas). Exportando mesmo assim...",
+        "export_success": "✓ CSV exportado: {fname} ({n} linhas)",
+        "kp_col_name":    "Nome",
+        "kp_col_loc":     "Localização",
+        "thresh_col_status":  "Estado",
+        "thresh_col_meaning": "Significado",
+        "kp_locations": ["Occipital", "C7 cervical", "Acrômio", "Meio das costas",
+                         "Quadril", "Cervical média", "Mandíbula", "Queixo", "Escápula"],
     },
 }
 
@@ -474,7 +510,8 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         )
         state.frame_count += 1
         out = frame_bgr
-        cv2.putText(out, "Sin deteccion — Colocate frente a la camara",
+        _no_person_msg = LANGS.get(_current_lang, LANGS["es"])["js_no_person"]
+        cv2.putText(out, _no_person_msg,
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
@@ -495,7 +532,8 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         )
         state.frame_count += 1
         out = frame_bgr
-        cv2.putText(out, "Sin deteccion — Colocate frente a la camara",
+        _no_person_msg = LANGS.get(_current_lang, LANGS["es"])["js_no_person"]
+        cv2.putText(out, _no_person_msg,
             (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
@@ -755,10 +793,11 @@ def _compute_summary(session_data: list[dict]) -> Optional[dict]:
 
 def _export_csv_file() -> tuple[Optional[str], str]:
     """Genera archivo CSV de la sesión actual. Retorna (ruta_tmp, mensaje)."""
+    t = LANGS.get(_current_lang, LANGS["es"])
     if not state.session_data:
-        return None, "⚠ No hay datos en la sesión actual. Inicia el monitoreo primero."
+        return None, t["export_no_data"]
     if len(state.session_data) > 10000:
-        return None, f"⚠ Buffer muy grande ({len(state.session_data)} filas). Exportando de todas formas..."
+        return None, t["export_buf_warn"].format(n=len(state.session_data))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     fname = f"sesion_postural_{ts}.csv"
     tmp = tempfile.NamedTemporaryFile(
@@ -771,26 +810,27 @@ def _export_csv_file() -> tuple[Optional[str], str]:
     writer.writeheader()
     writer.writerows(state.session_data)
     tmp.close()
-    return tmp.name, f"✓ CSV exportado: {fname} ({len(state.session_data)} filas)"
+    return tmp.name, t["export_success"].format(fname=fname, n=len(state.session_data))
 
 
 def _build_summary_html(summary: Optional[dict]) -> str:
     """Construye HTML de la tarjeta de resumen de sesión."""
     if summary is None:
         return ""
+    t = LANGS.get(_current_lang, LANGS["es"])
     return f"""<div class="pm-card" style="margin-top:12px">
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--pm-text-3);margin-bottom:14px">
-    Resumen de Sesión
+    {t['js_summary']}
   </div>
   <table class="pm-table">
-    <tr><td>Frames analizados</td><td><strong>{summary['total_frames']}</strong></td></tr>
-    <tr><td>Postura correcta</td><td><strong style="color:var(--pm-green)">{summary['pct_correcto']}%</strong></td></tr>
-    <tr><td>Alerta leve</td><td><strong style="color:var(--pm-amber)">{summary['pct_leve']}%</strong></td></tr>
-    <tr><td>Alerta crítica</td><td><strong style="color:var(--pm-red)">{summary['pct_critico']}%</strong></td></tr>
-    <tr><td>CPI promedio</td><td><strong>{summary['avg_cpi']}</strong></td></tr>
-    <tr><td>CPI máximo</td><td><strong>{summary['max_cpi']}</strong></td></tr>
-    <tr><td>CPI mínimo</td><td><strong>{summary['min_cpi']}</strong></td></tr>
-    <tr><td>Tiempo mala postura</td><td><strong>{summary['total_bad_posture_s']}s</strong></td></tr>
+    <tr><td>{t['js_frames']}</td><td><strong>{summary['total_frames']}</strong></td></tr>
+    <tr><td>{t['js_pct_ok']}</td><td><strong style="color:var(--pm-green)">{summary['pct_correcto']}%</strong></td></tr>
+    <tr><td>{t['js_pct_warn']}</td><td><strong style="color:var(--pm-amber)">{summary['pct_leve']}%</strong></td></tr>
+    <tr><td>{t['js_pct_crit']}</td><td><strong style="color:var(--pm-red)">{summary['pct_critico']}%</strong></td></tr>
+    <tr><td>{t['js_avg_cpi']}</td><td><strong>{summary['avg_cpi']}</strong></td></tr>
+    <tr><td>{t['js_max_cpi']}</td><td><strong>{summary['max_cpi']}</strong></td></tr>
+    <tr><td>{t['js_min_cpi']}</td><td><strong>{summary['min_cpi']}</strong></td></tr>
+    <tr><td>{t['js_bad_total']}</td><td><strong>{summary['total_bad_posture_s']}s</strong></td></tr>
   </table>
 </div>"""
 
@@ -1160,7 +1200,7 @@ def _build_threshold_table(leve: float = 35, critico: float = 50, lang: str = "e
     """Genera HTML de la tabla de umbrales CPI con valores actuales."""
     t = LANGS.get(lang, LANGS["es"])
     return f"""<table class="pm-table">
-    <tr><th>CPI</th><th>Estado</th><th>Significado</th></tr>
+    <tr><th>CPI</th><th>{t['thresh_col_status']}</th><th>{t['thresh_col_meaning']}</th></tr>
     <tr><td>CPI ≤ {leve:.0f}</td><td><span class="pm-badge badge-ok">{t['js_thresh_ok']}</span></td><td>{t['js_thresh_ok_d']}</td></tr>
     <tr><td>{leve:.0f} &lt; CPI ≤ {critico:.0f}</td><td><span class="pm-badge badge-warn">{t['js_thresh_warn']}</span></td><td>{t['js_thresh_warn_d']}</td></tr>
     <tr><td>CPI &gt; {critico:.0f}</td><td><span class="pm-badge badge-crit">{t['js_thresh_crit']}</span></td><td>{t['js_thresh_crit_d']}</td></tr>
@@ -1505,6 +1545,28 @@ def _build_static_metrics_panel(lang: str = "es") -> str:
 """
 
 
+def _build_keypoints_table_html(lang: str = "es") -> str:
+    """Genera tabla HTML de referencia de keypoints traducida."""
+    t = LANGS.get(lang, LANGS["es"])
+    locs = t["kp_locations"]
+    kp_names = ["Head-back", "Neck-back", "Shoulder-top", "Back-backedge",
+                "Hips-backedge", "Neck-middle", "Jaw", "Chin", "Shoulder-back"]
+    rows = "".join(
+        f'<tr><td style="padding:3px 6px"><b>K{i}</b></td>'
+        f'<td>{kp_names[i]}</td>'
+        f'<td>{locs[i]}</td></tr>'
+        for i in range(9)
+    )
+    return f"""<table style="width:100%;font-size:11px;border-collapse:collapse;color:#cbd5e1">
+  <tr style="color:#6366f1">
+    <th style="padding:4px 6px;text-align:left">ID</th>
+    <th style="padding:4px 6px;text-align:left">{t['kp_col_name']}</th>
+    <th style="padding:4px 6px;text-align:left">{t['kp_col_loc']}</th>
+  </tr>
+  {rows}
+</table>"""
+
+
 # ── Idioma activo (módulo-level, leído por callbacks de sesión) ───────────────
 _current_lang: str = DEFAULT_LANG
 
@@ -1517,7 +1579,7 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
     btn_label = t["btn_stop"] if is_active else t["btn_start"]
     session_msg = t["session_active"] if is_active else t["session_idle"]
     return (
-        gr.update(value=_build_static_metrics_panel(lang)),          # metrics_panel
+        gr.update(value=_build_static_metrics_panel(lang)),           # metrics_panel
         gr.update(value=_build_threshold_table(leve, critico, lang)), # threshold_table
         gr.update(label=t["thresh_leve"]),                            # leve_slider
         gr.update(label=t["thresh_crit"]),                            # critico_slider
@@ -1527,6 +1589,8 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
         gr.update(label=t["export_file"]),                            # export_file
         gr.update(value=t["export_btn"]),                             # export_btn
         gr.update(label=t["model_label"]),                            # model_dropdown
+        gr.update(label=t["webcam_label"]),                           # webcam
+        gr.update(value=_build_keypoints_table_html(lang)),           # keypoints_table
     )
 
 
@@ -1589,7 +1653,7 @@ def build_ui() -> gr.Blocks:
             with gr.Column(scale=2, elem_classes=["pm-leftcol"]):
                 webcam = gr.Image(
                     sources=["webcam"],
-                    label="Cámara en Vivo",
+                    label=t0["webcam_label"],
                     height=360,
                     width=480,
                     streaming=True,
@@ -1600,7 +1664,7 @@ def build_ui() -> gr.Blocks:
                         choices=[c["name"] for c in MODEL_CONFIGS],
                         value=MODEL_CONFIGS[0]["name"],
                         label=t0["model_label"],
-                        info="Selecciona el modelo para inferencia",
+                        info=t0["model_info_sel"],
                         interactive=True,
                     )
 
@@ -1619,20 +1683,7 @@ def build_ui() -> gr.Blocks:
                     threshold_msg = gr.Markdown(t0["thresh_hint"])
 
                 with gr.Accordion(t0["kp_title"], open=False):
-                    gr.HTML("""
-                    <table style="width:100%;font-size:11px;border-collapse:collapse;color:#cbd5e1">
-                      <tr style="color:#6366f1"><th style="padding:4px 6px;text-align:left">ID</th><th style="padding:4px 6px;text-align:left">Nombre</th><th style="padding:4px 6px;text-align:left">Ubicación</th></tr>
-                      <tr><td style="padding:3px 6px"><b>K0</b></td><td>Head-back</td><td>Occipital</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K1</b></td><td>Neck-back</td><td>C7 cervical</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K2</b></td><td>Shoulder-top</td><td>Acromion</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K3</b></td><td>Back-borde</td><td>Espalda media</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K4</b></td><td>Hips-backedge</td><td>Cadera</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K5</b></td><td>Neck-middle</td><td>Cervical media</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K6</b></td><td>Jaw</td><td>Mandíbula</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K7</b></td><td>Chin</td><td>Mentón</td></tr>
-                      <tr><td style="padding:3px 6px"><b>K8</b></td><td>Shoulder-back</td><td>Escápula</td></tr>
-                    </table>
-                    """)
+                    keypoints_table = gr.HTML(_build_keypoints_table_html(DEFAULT_LANG))
 
             # ── DERECHA: solo métricas vivas + sesión ──
             with gr.Column(scale=1, min_width=340, elem_classes=["pm-sidebar"]):
@@ -1671,7 +1722,7 @@ def build_ui() -> gr.Blocks:
             outputs=[
                 metrics_panel, threshold_table, leve_slider, critico_slider,
                 session_btn, session_status, threshold_msg, export_file,
-                export_btn, model_dropdown,
+                export_btn, model_dropdown, webcam, keypoints_table,
             ],
         )
 
