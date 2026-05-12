@@ -168,7 +168,11 @@ class InferenceEngine:
             device = "cuda" if torch.cuda.is_available() else "cpu"
             print(f"[INFO] InferenceEngine auto-detectó dispositivo: {device.upper()}")
             if device == "cuda":
-                print(f"[INFO] GPU: {torch.cuda.get_device_name(0)}")
+                _props = torch.cuda.get_device_properties(0)
+                print(f"[INFO] GPU: {_props.name}")
+                print(f"[INFO] VRAM: {_props.total_memory / 1024**3:.1f} GB | Compute: {_props.major}.{_props.minor}")
+                torch.backends.cudnn.benchmark = True
+        self._use_fp16 = (device == "cuda" and torch.cuda.get_device_properties(0).major >= 6)
         self.model_path = Path(model_path)
         self.camera_id = camera_id
         self.confidence_threshold = confidence_threshold
@@ -202,6 +206,8 @@ class InferenceEngine:
         # Warmup — primera inferencia siempre es más lenta
         dummy = np.zeros((480, 640, 3), dtype=np.uint8)
         self._run_inference(dummy, frame_id=-1)
+        if self._use_fp16:
+            print(f"[INFO] InferenceEngine: FP16 activado ✓")
 
     # ── Propiedades ──────────────────────────────────────────────────────────
 
@@ -391,7 +397,7 @@ class InferenceEngine:
             # frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
 
         # Ejecutar YOLO — solo predicción, sin clasificación postural
-        preds = self.model(frame, verbose=False)
+        preds = self.model(frame, verbose=False, half=self._use_fp16)
 
         if not preds or preds[0].keypoints is None:
             return KeypointResult(

@@ -41,14 +41,43 @@ except ImportError:
     def _beep(freq: int, duration: int) -> None:
         pass  # No-op en Linux/Mac
 
-# ── Detección automática de GPU ──────────────────────────────────────────────
+# ── Detección automática de GPU + capacidades ────────────────────────────────
 DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
+USE_FP16: bool = False  # Half-precision (FP16) — activado si GPU lo soporta
+
 print(f"[INFO] Dispositivo de inferencia detectado: {DEVICE.upper()}")
 if DEVICE == "cuda":
-    print(f"[INFO] GPU: {torch.cuda.get_device_name(0)}")
-    print(f"[INFO] VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+    _gpu_props = torch.cuda.get_device_properties(0)
+    _gpu_name = _gpu_props.name
+    _gpu_vram_gb = _gpu_props.total_memory / 1024**3
+    _gpu_compute = f"{_gpu_props.major}.{_gpu_props.minor}"
+    print(f"[INFO] GPU: {_gpu_name}")
+    print(f"[INFO] VRAM: {_gpu_vram_gb:.1f} GB | Compute Capability: {_gpu_compute}")
+    # cuDNN benchmark: auto-tuning de kernels para tamaño de input fijo → +10-15% FPS
+    torch.backends.cudnn.benchmark = True
+    print(f"[INFO] ✓ cuDNN benchmark activado (auto-tuning kernels)")
+    # FP16 soportado en compute capability >= 5.3 (Maxwell+) con buen rendimiento en >= 7.0 (Volta+)
+    # Pascal (6.x) lo soporta con throughput reducido pero sigue siendo más rápido que FP32
+    if _gpu_props.major >= 6:
+        USE_FP16 = True
+        print(f"[INFO] ✓ FP16 (half-precision) ACTIVADO — inferencia acelerada")
+    elif _gpu_props.major == 5 and _gpu_props.minor >= 3:
+        USE_FP16 = True
+        print(f"[INFO] ✓ FP16 activado (soporte básico, compute {_gpu_compute})")
+    else:
+        print(f"[INFO] ✗ FP16 no disponible (compute {_gpu_compute} < 5.3) — usando FP32")
+else:
+    print("[INFO] Sin GPU CUDA — inferencia en CPU (FP32)")
 
-# ── Internacionalización (ES / EN / PT) ─────────────────────────────────────
+# Skip ratio: process every Nth frame through YOLO, skip remaining
+# Con FP16 la inferencia es más rápida → podemos procesar más frames
+SKIP_RATIO = 2 if USE_FP16 else 3
+
+# ── GPU info string para UI ───────────────────────────────────────────────────
+if DEVICE == "cuda":
+    _GPU_STATUS = f"🟢 GPU: {_gpu_name} ({_gpu_vram_gb:.1f}GB) · FP16: {'✓' if USE_FP16 else '✗'} · Skip: 1/{SKIP_RATIO}"
+else:
+    _GPU_STATUS = f"🔴 CPU · FP32 · Skip: 1/{SKIP_RATIO}"
 LANGS: dict[str, dict[str, str]] = {
     "es": {
         "title":          "Sistema de Monitoreo Postural en Tiempo Real",
@@ -329,9 +358,6 @@ MODEL_CONFIGS = [
 # Lookup rápido O(1) para evitar loop cada frame
 MODEL_LOOKUP: dict[str, dict[str, str]] = {c["name"]: c for c in MODEL_CONFIGS}
 
-# Skip ratio: process every Nth frame through YOLO, skip remaining
-SKIP_RATIO = 3
-
 # ── Suavizado EMA para keypoints (anti-flicker) ───────────────────────
 EMA_ALPHA: float = 0.35          # Factor de suavizado (0=sin cambio, 1=sin suavizar)
 KP_GRACE_FRAMES: int = 8         # Frames de gracia antes de descartar un keypoint perdido
@@ -373,18 +399,19 @@ class AppState:
         self._cpi_history: list[tuple[float, float]] = []  # (timestamp, cpi)
 
     def load_model(self, model_path: str) -> None:
-        """Carga o recarga el modelo YOLO en GPU/CPU."""
+        """Carga o recarga el modelo YOLO en GPU/CPU con optimización FP16."""
         if self.model is None or model_path != getattr(self, "_loaded_path", None):
             print(f"[INFO] Cargando modelo: {model_path}")
-            print(f"[INFO] Dispositivo: {DEVICE.upper()}")
+            print(f"[INFO] Dispositivo: {DEVICE.upper()} | FP16: {'SÍ' if USE_FP16 else 'NO'}")
             self.model = YOLO(model_path)
             self.model.to(DEVICE)  # Mover a GPU (ultralytics 8.x)
             self._loaded_path = model_path
-            # Warmup con tamaño real para compilar kernels CUDA
+            # Warmup con tamaño real para compilar kernels CUDA (incluye half si FP16)
             dummy = np.zeros((640, 640, 3), dtype=np.uint8)
-            self.model(dummy, verbose=False, imgsz=640)
+            self.model(dummy, verbose=False, imgsz=640, half=USE_FP16)
             print(f"[INFO] Modelo cargado en {next(self.model.model.parameters()).device} ✓")
-            print(f"[INFO] VRAM usada: {torch.cuda.memory_allocated()/1024**2:.0f} MB")
+            if DEVICE == "cuda":
+                print(f"[INFO] VRAM usada: {torch.cuda.memory_allocated()/1024**2:.0f} MB")
 
 
 state = AppState()
@@ -473,14 +500,9 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # ── Frame skipping: skip every Nth frame (save YOLO inference) ────
     state._skip_counter += 1
     if state._skip_counter % SKIP_RATIO != 0 and state._last_overlay_bgr is not None:
-        # Skip path: reuse overlay from last inference frame
-        out = state._last_overlay_bgr.copy()
-        h, w = out.shape[:2]
+        # Skip path: reuse overlay from last inference frame (sin copia — cvtColor no muta src)
         cpi_s, stat_s, lumbar_s, curv_s, bad_s, alert_s = state._last_posture_result or (0, "NO DETECTADO", 0, 0, 0, False)
-
-        # Skip path: frame limpio sin overlay de FPS (FPS va al panel HTML)
-        pass
-        out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
+        out_rgb = cv2.cvtColor(state._last_overlay_bgr, cv2.COLOR_BGR2RGB)
 
         # FPS tracking: include skip frames for accurate display rate
         state._fps_times.append(time.time())
@@ -495,10 +517,10 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # Convertir RGB → BGR para YOLO/OpenCV
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-    # ── YOLO inference ──────────────────────────────────────────────────
+    # ── YOLO inference (FP16 si GPU lo soporta) ───────────────────────────
     try:
         t_inf = time.time()
-        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=256, max_det=MAX_PERSONS)
+        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=256, max_det=MAX_PERSONS, half=USE_FP16)
         inference_ms = (time.time() - t_inf) * 1000
     except Exception as e:
         return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
@@ -863,6 +885,33 @@ CSS = """
     --pm-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
+:root[data-theme="light"] {
+    --pm-bg: #f1f5f9;
+    --pm-surface: rgba(255, 255, 255, 0.95);
+    --pm-surface-2: rgba(241, 245, 249, 0.85);
+    --pm-border: rgba(99, 102, 241, 0.2);
+    --pm-border-strong: rgba(99, 102, 241, 0.4);
+    --pm-text-1: #0f172a;
+    --pm-text-2: #1e293b;
+    --pm-text-3: #475569;
+    --pm-text-muted: #94a3b8;
+    --pm-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Theme toggle button ── */
+#pm-theme-toggle {
+    background: var(--pm-surface);
+    border: 1px solid var(--pm-border);
+    border-radius: var(--pm-radius-sm);
+    color: var(--pm-text-1);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 6px 10px;
+    transition: background 0.2s, border-color 0.2s;
+}
+#pm-theme-toggle:hover { background: var(--pm-surface-2); border-color: var(--pm-border-strong); }
+
 * { box-sizing: border-box; }
 
 body, .gradio-container {
@@ -1151,6 +1200,21 @@ body, .gradio-container {
 /* Left column expansion */
 .pm-leftcol { width: 100% !important; }
 .pm-leftcol > * { width: 100% !important; }
+
+/* ── Light mode: Gradio native element overrides ── */
+:root[data-theme="light"] .gradio-container,
+:root[data-theme="light"] body { background: var(--pm-bg) !important; color: var(--pm-text-1) !important; }
+:root[data-theme="light"] .block { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; }
+:root[data-theme="light"] input, :root[data-theme="light"] textarea,
+:root[data-theme="light"] select, :root[data-theme="light"] .wrap {
+    background: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important;
+}
+:root[data-theme="light"] .label-wrap, :root[data-theme="light"] label { color: var(--pm-text-2) !important; }
+:root[data-theme="light"] .accordion { background: var(--pm-surface) !important; border-color: var(--pm-border) !important; }
+:root[data-theme="light"] .gr-button.secondary { background: #e2e8f0 !important; color: #0f172a !important; }
+:root[data-theme="light"] .gr-button.secondary:hover { background: #cbd5e1 !important; }
+:root[data-theme="light"] .gr-input-label, :root[data-theme="light"] .gr-check-radio { color: var(--pm-text-1) !important; }
+:root[data-theme="light"] .markdown { color: var(--pm-text-2) !important; }
 
 """
 
@@ -1578,6 +1642,9 @@ def _build_header_html(lang: str = "es") -> str:
             <span class="pm-live-dot"></span>
             {t['brand']}
         </span>
+        <span class="brand-line" style="font-size:0.75rem; opacity:0.8; margin-top:2px;">
+            {_GPU_STATUS}
+        </span>
     </div>
     """
 
@@ -1642,7 +1709,21 @@ def _toggle_session(is_active: bool) -> tuple[bool, str, str, object, object]:
 def build_ui() -> gr.Blocks:
     """Construye la interfaz Gradio completa."""
     t0 = LANGS[DEFAULT_LANG]
-    head_script = f'<script>({METRICS_JS})();</script>'
+    theme_js = """
+    (function(){
+        var saved = localStorage.getItem('pm-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', saved);
+        window.__pmToggleTheme = function() {
+            var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+            var next = cur === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('pm-theme', next);
+            var btn = document.getElementById('pm-theme-toggle');
+            if (btn) btn.textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
+        };
+    })();
+    """
+    head_script = f'<script>{theme_js}({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
         head=head_script,
@@ -1651,7 +1732,7 @@ def build_ui() -> gr.Blocks:
 
         session_state = gr.State(False)
 
-        # ── Selector de idioma (top-right) ──
+        # ── Selector de idioma + toggle tema (top-right) ──
         with gr.Row():
             with gr.Column(scale=5):
                 pass  # spacer
@@ -1662,6 +1743,10 @@ def build_ui() -> gr.Blocks:
                     label=t0["lang_label"],
                     interactive=True,
                     container=False,
+                )
+            with gr.Column(scale=0, min_width=50):
+                theme_toggle = gr.HTML(
+                    '<button id="pm-theme-toggle" onclick="window.__pmToggleTheme()">☀️</button>'
                 )
 
         with gr.Row():
