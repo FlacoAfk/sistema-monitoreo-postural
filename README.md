@@ -65,7 +65,7 @@ pip install torch==2.11.0+cu126 torchvision --index-url https://download.pytorch
 ### 4 — Instalar el resto de dependencias
 
 ```bash
-pip install -r posture_monitor/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### 5 — Ejecutar
