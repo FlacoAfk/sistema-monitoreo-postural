@@ -909,8 +909,15 @@ CSS = """
     --pm-text-1: #0f172a;
     --pm-text-2: #1e293b;
     --pm-text-3: #475569;
-    --pm-text-muted: #94a3b8;
+    --pm-text-muted: #64748b;
     --pm-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    /* Override Gradio internal CSS variables for light mode */
+    --body-text-color: #0f172a !important;
+    --body-text-color-subdued: #475569 !important;
+    --neutral-200: #1e293b !important;
+    --neutral-400: #475569 !important;
+    --block-title-text-color: #0f172a !important;
+    --color-text-body: #0f172a !important;
 }
 
 /* ── Theme toggle button ── */
@@ -1231,6 +1238,63 @@ body, .gradio-container {
 :root[data-theme="light"] .gr-input-label, :root[data-theme="light"] .gr-check-radio { color: var(--pm-text-1) !important; }
 :root[data-theme="light"] .markdown { color: var(--pm-text-2) !important; }
 
+/* ── Light mode: Custom metrics panel overrides ── */
+/* Gradio wraps gr.HTML in .prose which sets color via --body-text-color */
+/* Must use .prose ancestor + #id for specificity to win over Svelte scoped styles */
+:root[data-theme="light"] .prose #pm-metrics-root,
+:root[data-theme="light"] .prose #pm-metrics-root div,
+:root[data-theme="light"] .prose #pm-metrics-root span,
+:root[data-theme="light"] .prose #pm-metrics-root strong,
+:root[data-theme="light"] .prose #pm-metrics-root td,
+:root[data-theme="light"] .prose #pm-metrics-root th,
+:root[data-theme="light"] .prose #pm-metrics-root p,
+:root[data-theme="light"] .prose #pm-metrics-root table { color: #1e293b !important; }
+:root[data-theme="light"] .prose #pm-metrics-root .label,
+:root[data-theme="light"] .prose #pm-metrics-root .pm-gauge-sublabel,
+:root[data-theme="light"] .prose #pm-metrics-root .pm-status-detail { color: #475569 !important; }
+:root[data-theme="light"] .prose #pm-metrics-root .pm-section-title { color: #4f46e5 !important; }
+
+/* Light mode: tables */
+:root[data-theme="light"] .pm-table { color: #1e293b !important; }
+:root[data-theme="light"] .pm-table td { color: #1e293b !important; border-color: rgba(0, 0, 0, 0.08) !important; }
+:root[data-theme="light"] .pm-table strong { color: #0f172a !important; }
+
+/* Light mode: badges */
+:root[data-theme="light"] .badge-ok { background: rgba(34, 197, 94, 0.15) !important; color: #15803d !important; border-color: rgba(34, 197, 94, 0.4) !important; }
+:root[data-theme="light"] .badge-warn { background: rgba(245, 158, 11, 0.15) !important; color: #b45309 !important; border-color: rgba(245, 158, 11, 0.4) !important; }
+:root[data-theme="light"] .badge-crit { background: rgba(239, 68, 68, 0.15) !important; color: #dc2626 !important; border-color: rgba(239, 68, 68, 0.4) !important; }
+:root[data-theme="light"] .badge-nd { background: rgba(100, 116, 139, 0.1) !important; color: #475569 !important; border-color: rgba(100, 116, 139, 0.3) !important; }
+
+/* Light mode: sparkline */
+:root[data-theme="light"] .pm-sparkline-wrap { background: rgba(241, 245, 249, 0.9) !important; }
+:root[data-theme="light"] #pm-sparkline-svg text { fill: #475569 !important; }
+
+/* Light mode: header */
+:root[data-theme="light"] .pm-header {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(6, 182, 212, 0.05)) !important;
+    border-color: rgba(99, 102, 241, 0.2) !important;
+}
+:root[data-theme="light"] .pm-header h1 { color: #0f172a !important; }
+:root[data-theme="light"] .pm-header p { color: #334155 !important; }
+:root[data-theme="light"] .pm-header .brand-line { color: #475569 !important; }
+
+/* Light mode: accordion & buttons */
+:root[data-theme="light"] .gr-accordion { background: rgba(255, 255, 255, 0.9) !important; border-color: rgba(99, 102, 241, 0.2) !important; }
+:root[data-theme="light"] .gr-accordion > button { color: #1e293b !important; }
+:root[data-theme="light"] .gr-dropdown select { background: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
+:root[data-theme="light"] .gr-button-secondary { background: #e2e8f0 !important; color: #1e293b !important; border-color: #cbd5e1 !important; }
+
+/* Light mode: video container — prevent flicker on theme switch */
+:root[data-theme="light"] .pm-leftcol .block { background: #1e293b !important; border-color: rgba(99, 102, 241, 0.2) !important; }
+:root[data-theme="light"] .pm-leftcol .block video,
+:root[data-theme="light"] .pm-leftcol .block img,
+:root[data-theme="light"] .pm-leftcol .block .image-container,
+:root[data-theme="light"] .pm-leftcol .block .upload-container { transition: none !important; }
+
+/* Light mode: session panel */
+:root[data-theme="light"] .gr-file { background: rgba(241, 245, 249, 0.9) !important; border-color: #cbd5e1 !important; color: #1e293b !important; }
+:root[data-theme="light"] .gr-markdown { color: #334155 !important; }
+
 """
 
 THEME = gr.themes.Base(
@@ -1446,7 +1510,37 @@ def _build_metrics_js() -> str:
   }}
 
   // Polling loop — lee el div carrier cada 100ms
+  var __lightCssInjected = false;
   setInterval(function() {{
+    // Inject light mode CSS once (must be done after Gradio finishes DOM setup)
+    if (!__lightCssInjected) {{
+      var s = document.createElement('style');
+      s.textContent = ':root[data-theme="light"] #pm-metrics-root,' +
+        ':root[data-theme="light"] #pm-metrics-root div,' +
+        ':root[data-theme="light"] #pm-metrics-root span,' +
+        ':root[data-theme="light"] #pm-metrics-root strong,' +
+        ':root[data-theme="light"] #pm-metrics-root td,' +
+        ':root[data-theme="light"] #pm-metrics-root th,' +
+        ':root[data-theme="light"] #pm-metrics-root p,' +
+        ':root[data-theme="light"] #pm-metrics-root table {{ color: #1e293b !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .label,' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-gauge-sublabel,' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-status-detail {{ color: #475569 !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-section-title {{ color: #4f46e5 !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-conf-track {{ background: rgba(0,0,0,0.06) !important; border-color: rgba(0,0,0,0.08) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-card {{ background: rgba(255,255,255,0.92) !important; border-color: rgba(99,102,241,0.25) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-metric-item {{ background: rgba(241,245,249,0.9) !important; border-color: rgba(99,102,241,0.2) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-status-nd {{ background: rgba(148,163,184,0.1) !important; border-color: rgba(100,116,139,0.3) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-status-ok {{ background: rgba(34,197,94,0.1) !important; border-color: rgba(34,197,94,0.4) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-status-warn {{ background: rgba(245,158,11,0.1) !important; border-color: rgba(245,158,11,0.4) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .pm-status-crit {{ background: rgba(239,68,68,0.1) !important; border-color: rgba(239,68,68,0.4) !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .badge-ok {{ background: rgba(34,197,94,0.15) !important; color: #15803d !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .badge-warn {{ background: rgba(245,158,11,0.15) !important; color: #b45309 !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .badge-crit {{ background: rgba(239,68,68,0.15) !important; color: #dc2626 !important; }}' +
+        ':root[data-theme="light"] #pm-metrics-root .badge-nd {{ background: rgba(100,116,139,0.1) !important; color: #475569 !important; }}';
+      document.body.appendChild(s);
+      __lightCssInjected = true;
+    }}
     var el = document.getElementById('pm-metrics-data-inner');
     if (!el) return;
     var raw = (el.textContent || el.innerText || '').trim();
@@ -1728,16 +1822,61 @@ def build_ui() -> gr.Blocks:
     (function(){
         var saved = localStorage.getItem('pm-theme') || 'dark';
         document.documentElement.setAttribute('data-theme', saved);
+        
+        function applyTextColors(theme) {
+            var root = document.getElementById('pm-metrics-root');
+            if (!root) return;
+            var isDark = theme === 'dark';
+            var color = isDark ? '#f1f5f9' : '#1e293b';
+            var muted = isDark ? '#94a3b8' : '#475569';
+            var accent = isDark ? '#818cf8' : '#4f46e5';
+            var els = root.querySelectorAll('div, span, strong, td, th, p, table');
+            for (var i = 0; i < els.length; i++) {
+                els[i].style.setProperty('color', color, 'important');
+            }
+            var labels = root.querySelectorAll('.label, .pm-gauge-sublabel, .pm-status-detail');
+            for (var j = 0; j < labels.length; j++) {
+                labels[j].style.setProperty('color', muted, 'important');
+            }
+            var titles = root.querySelectorAll('.pm-section-title');
+            for (var k = 0; k < titles.length; k++) {
+                titles[k].style.setProperty('color', accent, 'important');
+            }
+            root.style.setProperty('color', color, 'important');
+        }
+        
+        // Apply on load after Gradio renders
+        function tryApply() { applyTextColors(localStorage.getItem('pm-theme') || 'dark'); }
+        setTimeout(tryApply, 500);
+        setTimeout(tryApply, 1500);
+        setTimeout(tryApply, 3000);
+        
         window.__pmToggleTheme = function() {
             var cur = document.documentElement.getAttribute('data-theme') || 'dark';
             var next = cur === 'dark' ? 'light' : 'dark';
+            // Suppress transitions on video container to prevent flicker
+            var videoBlock = document.querySelector('.pm-leftcol .block');
+            var allTransitionEls = videoBlock ? videoBlock.querySelectorAll('*') : [];
+            if (videoBlock) videoBlock.style.setProperty('transition', 'none', 'important');
+            for (var t = 0; t < allTransitionEls.length; t++) {
+                allTransitionEls[t].style.setProperty('transition', 'none', 'important');
+            }
             document.documentElement.setAttribute('data-theme', next);
             localStorage.setItem('pm-theme', next);
             var btn = document.getElementById('pm-theme-toggle');
             if (btn) btn.textContent = next === 'dark' ? '\\u2600\\uFE0F' : '\\uD83C\\uDF19';
+            applyTextColors(next);
+            // Re-enable transitions after repaint
+            setTimeout(function() {
+                if (videoBlock) videoBlock.style.removeProperty('transition');
+                for (var t = 0; t < allTransitionEls.length; t++) {
+                    allTransitionEls[t].style.removeProperty('transition');
+                }
+            }, 50);
         };
     })();
     """
+    # Light override CSS is injected via JS above (Gradio strips <style> from head param)
     head_script = f'<script>{theme_js}({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
