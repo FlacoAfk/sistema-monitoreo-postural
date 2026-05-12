@@ -56,6 +56,9 @@ imagenes de pruebas del modelo matematico/
 */Box*.png
 */Pose*.png
 
+# ── yolov11m excluido: 106MB supera límite de GitHub (100MB) ──
+models/yolov11m.pt
+
 # ── Directorios de entrenamiento (pesos ya copiados a models/) ──
 yolov5n_pose_b16_lr05/
 yolov5m_pose_b32_lr01/

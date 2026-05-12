@@ -84,14 +84,17 @@ sistema-monitoreo-postural/
 │   ├── yolov26s.pt   ✓ small — evidencia de entrenamiento
 │   ├── yolov5m.pt    ✓ medium — evidencia de entrenamiento
 │   ├── yolov26m.pt   ✓ medium — evidencia de entrenamiento
-│   └── yolov11m.pt   ✓ medium — evidencia de entrenamiento (Git LFS)
+│   └── yolov11m.pt   ✗ 106MB — supera límite GitHub; pedirlo al equipo
 ├── src/
 │   └── app.py
 ├── requirements.txt
 └── README.md
 ```
 
-> Si por alguna razón los pesos están en otra ubicación, definí la variable de entorno antes de correr:
+> `yolov11m.pt` (106MB) no está en el repositorio por superar el límite de GitHub.
+> Si lo necesitás, pedíselo al equipo o descargalo por separado y colocalo en `models/`.
+>
+> Si tus pesos están en otra ubicación, definí la variable de entorno antes de correr:
 >
 > ```bash
 > # Windows
