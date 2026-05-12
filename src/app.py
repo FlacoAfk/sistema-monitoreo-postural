@@ -1501,53 +1501,12 @@ body, html, .gradio-container {
     text-align: center !important;
 }
 
-/* ── Gradio Settings Dialog Light Mode ── */
-:root[data-pm-theme="light"] dialog[open] {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.12) !important;
-    color: #0f172a !important;
-}
-:root[data-pm-theme="light"] dialog[open] h2,
-:root[data-pm-theme="light"] dialog[open] h3,
-:root[data-pm-theme="light"] dialog[open] label,
-:root[data-pm-theme="light"] dialog[open] .block-title {
-    color: #0f172a !important;
-}
-:root[data-pm-theme="light"] dialog[open] select,
-:root[data-pm-theme="light"] dialog[open] input,
-:root[data-pm-theme="light"] dialog[open] textarea {
-    background: #f8fafc !important;
-    color: #0f172a !important;
-    border-color: #cbd5e1 !important;
-}
-:root[data-pm-theme="light"] dialog[open] p,
-:root[data-pm-theme="light"] dialog[open] .text-sm,
-:root[data-pm-theme="light"] dialog[open] .gr-text-sm,
-:root[data-pm-theme="light"] dialog[open] .description {
-    color: #475569 !important;
-}
-:root[data-pm-theme="light"] dialog[open] button:not(.gr-button-lg) {
-    background: #f1f5f9 !important;
-    color: #1e293b !important;
-    border: 1px solid #e2e8f0 !important;
-}
-:root[data-pm-theme="light"] dialog[open] button:hover {
-    background: #e2e8f0 !important;
-}
-:root[data-pm-theme="light"] dialog[open] input[type="checkbox"] {
-    accent-color: #6366f1 !important;
-}
-:root[data-pm-theme="light"] dialog[open] .close-button,
-:root[data-pm-theme="light"] dialog[open] button[aria-label="Close"] {
-    background: transparent !important;
-    color: #64748b !important;
-    border: none !important;
-}
-:root[data-pm-theme="light"] dialog[open] .close-button:hover,
-:root[data-pm-theme="light"] dialog[open] button[aria-label="Close"]:hover {
-    color: #0f172a !important;
-    background: #f1f5f9 !important;
+/* ── Hide Gradio native settings button (causes visual issues in light theme) ── */
+button[aria-label="Configuración"],
+button[aria-label="Settings"],
+button[aria-label*="Configuration"],
+.gr-footer button:has(svg):not(.gr-button-lg) {
+    display: none !important;
 }
 """
 
