@@ -1405,16 +1405,20 @@ body, html, .gradio-container {
 :root[data-pm-theme="light"] .pm-leftcol .block .upload-container { transition: none !important; }
 
 /* Fondo oscuro FIJO detrás del video (nunca cambia con el theme)
-   Evita que el fondo blanco se vea durante transiciones/reconexiones */
+   Evita que el fondo blanco se vea durante transiciones/reconexiones
+   min-height evita que el contenedor se achique cuando el video no está activo */
 .pm-leftcol .block .image-container,
 .pm-leftcol .block .upload-container {
     background: #0f172a !important;
+    min-height: 360px !important;
 }
 .pm-leftcol .block video {
     background: #000000 !important;
+    min-height: 360px !important;
 }
 .pm-leftcol .image-container img {
     background: #0f172a !important;
+    min-height: 360px !important;
 }
 
 /* Light mode: session panel */
