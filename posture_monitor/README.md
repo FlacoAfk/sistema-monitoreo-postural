@@ -68,33 +68,30 @@ pip install torch==2.11.0+cu126 torchvision --index-url https://download.pytorch
 pip install -r posture_monitor/requirements.txt
 ```
 
-### 5 — Verificar modelos
+### 5 — Ejecutar
 
-Los pesos `.pt` de los 4 modelos deben estar en la raíz del repositorio:
+Los 4 modelos entrenados (`best.pt`) ya están incluidos en el repositorio. No necesitás descargar nada extra.
 
 ```
 sistema-monitoreo-postural/
-├── yolov8n_pose_b16_lr05/weights/best.pt   ← requerido
-├── yolov5n_pose_b16_lr05/weights/best.pt   ← requerido
-├── yolov26n_pose_b128_lr05/weights/best.pt ← requerido
-├── yolov11n_pose_b16_lr01/weights/best.pt  ← requerido
+├── yolov8n_pose_b16_lr05/weights/best.pt   ✓ incluido
+├── yolov5n_pose_b16_lr05/weights/best.pt   ✓ incluido
+├── yolov26n_pose_b128_lr05/weights/best.pt ✓ incluido
+├── yolov11n_pose_b16_lr01/weights/best.pt  ✓ incluido
 └── posture_monitor/
     └── src/
         └── app.py
 ```
 
-> Los archivos `.pt` están excluidos del repositorio por tamaño (`.gitignore`).
-> Descargalos desde el release o pedíselos al equipo.
-
-Si los pesos están en otra ubicación, definí la variable de entorno antes de correr:
-
-```bash
-# Windows
-set POSTURE_MODELS_DIR=C:\ruta\a\tus\modelos
-
-# Linux / Mac
-export POSTURE_MODELS_DIR=/ruta/a/tus/modelos
-```
+> Si por alguna razón los pesos están en otra ubicación, definí la variable de entorno antes de correr:
+>
+> ```bash
+> # Windows
+> set POSTURE_MODELS_DIR=C:\ruta\a\tus\modelos
+>
+> # Linux / Mac
+> export POSTURE_MODELS_DIR=/ruta/a/tus/modelos
+> ```
 
 ---
 

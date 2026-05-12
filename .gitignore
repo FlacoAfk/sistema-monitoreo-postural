@@ -42,7 +42,19 @@ temp/
 
 # ── Generated validation outputs (reproducibles con validate_keypoints.py) ──
 posture_monitor/keypoint_output/*.png
+posture_monitor/keypoint_output/*.json
 posture_monitor/outputs/
+
+# ── Training images & benchmark outputs (no son parte del software) ──
+imagenes_prueba_postura/
+imagenes de pruebas del modelo matematico/
+*/train_batch*.jpg
+*/val_batch*.jpg
+*/labels.jpg
+*/results.png
+*/confusion_matrix*.png
+*/Box*.png
+*/Pose*.png
 
 # ── Obsolete files (old mentonian angle, replaced by CPI) ──
 validate_mentoniano.py
