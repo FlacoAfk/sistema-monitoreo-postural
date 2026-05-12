@@ -44,6 +44,7 @@ except ImportError:
 # ── Detección automática de GPU + capacidades ────────────────────────────────
 DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 USE_FP16: bool = False  # Half-precision (FP16) — activado si GPU lo soporta
+INFER_IMGSZ: int = 256  # Tamaño de inferencia (adaptativo según hardware)
 
 print(f"[INFO] Dispositivo de inferencia detectado: {DEVICE.upper()}")
 if DEVICE == "cuda":
@@ -66,18 +67,32 @@ if DEVICE == "cuda":
         print(f"[INFO] ✓ FP16 activado (soporte básico, compute {_gpu_compute})")
     else:
         print(f"[INFO] ✗ FP16 no disponible (compute {_gpu_compute} < 5.3) — usando FP32")
+    INFER_IMGSZ = 256  # GPU: tamaño estándar
 else:
+    # ── Optimizaciones CPU ────────────────────────────────────────────────
+    import os
+    _cpu_count = os.cpu_count() or 4
+    # Limitar threads de PyTorch para evitar over-subscription en CPUs modestas
+    _optimal_threads = max(2, min(_cpu_count, 8))
+    torch.set_num_threads(_optimal_threads)
+    torch.set_num_interop_threads(max(1, _optimal_threads // 2))
+    INFER_IMGSZ = 192  # CPU: tamaño reducido para inferencia más rápida
+    print(f"[INFO] CPU: {_cpu_count} cores · PyTorch threads: {_optimal_threads}")
+    print(f"[INFO] Tamaño de inferencia reducido: {INFER_IMGSZ}px (optimización CPU)")
     print("[INFO] Sin GPU CUDA — inferencia en CPU (FP32)")
 
 # Skip ratio: process every Nth frame through YOLO, skip remaining
-# Con FP16 la inferencia es más rápida → podemos procesar más frames
-SKIP_RATIO = 2 if USE_FP16 else 3
+# GPU+FP16: skip 1/2 | GPU sin FP16: skip 1/3 | CPU: skip 1/4 (más agresivo)
+if DEVICE == "cuda":
+    SKIP_RATIO = 2 if USE_FP16 else 3
+else:
+    SKIP_RATIO = 4  # CPU necesita más skip para mantener fluidez
 
-# ── GPU info string para UI ───────────────────────────────────────────────────
+# ── Info string para UI (adaptativo) ─────────────────────────────────────────
 if DEVICE == "cuda":
     _GPU_STATUS = f"🟢 GPU: {_gpu_name} ({_gpu_vram_gb:.1f}GB) · FP16: {'✓' if USE_FP16 else '✗'} · Skip: 1/{SKIP_RATIO}"
 else:
-    _GPU_STATUS = f"🔴 CPU · FP32 · Skip: 1/{SKIP_RATIO}"
+    _GPU_STATUS = f"🟡 CPU ({_cpu_count} cores) · FP32 · img:{INFER_IMGSZ}px · Skip: 1/{SKIP_RATIO}"
 LANGS: dict[str, dict[str, str]] = {
     "es": {
         "title":          "Sistema de Monitoreo Postural en Tiempo Real",
@@ -406,9 +421,9 @@ class AppState:
             self.model = YOLO(model_path)
             self.model.to(DEVICE)  # Mover a GPU (ultralytics 8.x)
             self._loaded_path = model_path
-            # Warmup con tamaño real para compilar kernels CUDA (incluye half si FP16)
-            dummy = np.zeros((640, 640, 3), dtype=np.uint8)
-            self.model(dummy, verbose=False, imgsz=640, half=USE_FP16)
+            # Warmup con tamaño de inferencia real para compilar kernels
+            dummy = np.zeros((INFER_IMGSZ, INFER_IMGSZ, 3), dtype=np.uint8)
+            self.model(dummy, verbose=False, imgsz=INFER_IMGSZ, half=USE_FP16)
             print(f"[INFO] Modelo cargado en {next(self.model.model.parameters()).device} ✓")
             if DEVICE == "cuda":
                 print(f"[INFO] VRAM usada: {torch.cuda.memory_allocated()/1024**2:.0f} MB")
@@ -520,7 +535,7 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # ── YOLO inference (FP16 si GPU lo soporta) ───────────────────────────
     try:
         t_inf = time.time()
-        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=256, max_det=MAX_PERSONS, half=USE_FP16)
+        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=INFER_IMGSZ, max_det=MAX_PERSONS, half=USE_FP16)
         inference_ms = (time.time() - t_inf) * 1000
     except Exception as e:
         return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])

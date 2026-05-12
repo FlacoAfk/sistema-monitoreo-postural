@@ -172,7 +172,14 @@ class InferenceEngine:
                 print(f"[INFO] GPU: {_props.name}")
                 print(f"[INFO] VRAM: {_props.total_memory / 1024**3:.1f} GB | Compute: {_props.major}.{_props.minor}")
                 torch.backends.cudnn.benchmark = True
-        self._use_fp16 = (device == "cuda" and torch.cuda.get_device_properties(0).major >= 6)
+            else:
+                import os
+                _cpu_count = os.cpu_count() or 4
+                _optimal_threads = max(2, min(_cpu_count, 8))
+                torch.set_num_threads(_optimal_threads)
+                torch.set_num_interop_threads(max(1, _optimal_threads // 2))
+                print(f"[INFO] CPU: {_cpu_count} cores · threads: {_optimal_threads}")
+        self._use_fp16 = (device == "cuda" and torch.cuda.get_device_properties(0).major >= 6) if device == "cuda" else False
         self.model_path = Path(model_path)
         self.camera_id = camera_id
         self.confidence_threshold = confidence_threshold
