@@ -2072,8 +2072,6 @@ def build_ui() -> gr.Blocks:
                 webcam = gr.Image(
                     sources=["webcam"],
                     label=t0["webcam_label"],
-                    height=360,
-                    width=480,
                     streaming=True,
                 )
 
