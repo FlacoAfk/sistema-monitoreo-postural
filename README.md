@@ -111,8 +111,8 @@ sistema-monitoreo-postural/
 ### Dashboard en tiempo real
 
 ```bash
-cd posture_monitor/src
-python app.py
+cd sistema-monitoreo-postural
+python src/app.py
 ```
 
 Abrí el navegador en **http://127.0.0.1:7860**
@@ -134,14 +134,14 @@ Abrí el navegador en **http://127.0.0.1:7860**
 ### Benchmark de modelos
 
 ```bash
-cd posture_monitor/src
-python model_benchmark.py
+cd sistema-monitoreo-postural
+python src/model_benchmark.py
 ```
 
 ### Validación de keypoints
 
 ```bash
-cd posture_monitor
+cd sistema-monitoreo-postural
 python validate_keypoints.py
 ```
 
