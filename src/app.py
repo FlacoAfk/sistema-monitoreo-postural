@@ -945,7 +945,6 @@ CSS = """
     padding: 0 !important;
     margin: 0 !important;
 }
-#pm-gear-wrap { position: relative; }
 #pm-gear-icon {
     font-size: 26px;
     opacity: 0.4;
@@ -957,46 +956,47 @@ CSS = """
     user-select: none;
 }
 #pm-gear-icon:hover { opacity: 1; }
-#pm-gear-popup {
-    display: none;
-    position: absolute;
-    bottom: 40px;
-    right: 0;
-    flex-direction: column;
-    gap: 4px;
-    background: var(--pm-surface);
-    border: 1px solid var(--pm-border);
-    border-radius: 10px;
-    padding: 6px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
-    min-width: 110px;
+/* ── Gear popup content (shown on click) ── */
+.gear-popup-content {
+    display: none !important;
+    position: absolute !important;
+    bottom: 44px !important;
+    right: 0 !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    background: var(--pm-surface) !important;
+    border: 1px solid var(--pm-border) !important;
+    border-radius: 10px !important;
+    padding: 8px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35) !important;
+    min-width: 120px !important;
+    z-index: 10000 !important;
 }
-.gear-root:hover #pm-gear-popup,
-#pm-gear-popup[style*="flex"] {
+.gear-root.active .gear-popup-content {
     display: flex !important;
 }
-.pm-gear-lang {
-    background: none !important;
+/* Dropdown real de Gradio dentro del popup */
+.gear-dropdown select,
+.gear-dropdown .gr-dropdown {
+    background: transparent !important;
     border: none !important;
-    color: var(--pm-text-2) !important;
-    cursor: pointer !important;
     font-size: 13px !important;
     padding: 6px 10px !important;
-    border-radius: 6px !important;
-    text-align: left !important;
+    cursor: pointer !important;
+    color: var(--pm-text-2) !important;
+    min-height: 32px !important;
+    height: 32px !important;
     width: 100% !important;
+    border-radius: 6px !important;
     transition: none !important;
+    text-align: left !important;
 }
-.pm-gear-lang:hover {
+.gear-dropdown select:hover {
     background: var(--pm-surface-2) !important;
     color: var(--pm-text-1) !important;
 }
-.pm-gear-divider {
-    height: 1px;
-    background: var(--pm-border);
-    margin: 2px 6px;
-}
-#pm-theme-toggle {
+/* Theme toggle dentro del popup */
+.gear-popup-content #pm-theme-toggle {
     background: none !important;
     border: none !important;
     color: var(--pm-text-2) !important;
@@ -1008,38 +1008,32 @@ CSS = """
     text-align: left !important;
     transition: none !important;
 }
-#pm-theme-toggle:hover {
+.gear-popup-content #pm-theme-toggle:hover {
     background: var(--pm-surface-2) !important;
     color: var(--pm-text-1) !important;
 }
-:root[data-pm-theme="light"] .pm-gear-lang,
-:root[data-pm-theme="light"] #pm-theme-toggle {
+:root[data-pm-theme="light"] .gear-popup-content {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.1) !important;
+}
+:root[data-pm-theme="light"] .gear-dropdown select,
+:root[data-pm-theme="light"] .gear-dropdown .gr-dropdown {
     color: #475569 !important;
 }
-:root[data-pm-theme="light"] .pm-gear-lang:hover,
-:root[data-pm-theme="light"] #pm-theme-toggle:hover {
+:root[data-pm-theme="light"] .gear-dropdown select:hover {
     background: #f1f5f9 !important;
     color: #0f172a !important;
 }
-:root[data-pm-theme="light"] #pm-gear-popup {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.1) !important;
+:root[data-pm-theme="light"] .gear-popup-content #pm-theme-toggle {
+    color: #475569 !important;
 }
-:root[data-pm-theme="light"] .pm-gear-divider {
-    background: #e2e8f0 !important;
+:root[data-pm-theme="light"] .gear-popup-content #pm-theme-toggle:hover {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
 }
 :root[data-pm-theme="light"] #pm-gear-icon {
     opacity: 0.55 !important;
-}
-/* Hidden dropdown (kept for backend callback) */
-.pm-lang-hidden {
-    visibility: hidden !important;
-    position: absolute !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-    pointer-events: none !important;
 }
 
 * { box-sizing: border-box; }
@@ -2131,26 +2125,17 @@ def build_ui() -> gr.Blocks:
                 });
             });
         };
-        // ── Gear popup: toggle + lang ──
+        // ── Gear popup: toggle active class ──
         window.__pmTogglePopup = function() {
-            var p = document.getElementById('pm-gear-popup');
-            if (!p) return;
-            p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
-        };
-        window.__pmSetLang = function(lang) {
-            var sel = document.querySelector('.pm-lang-hidden select');
-            if (!sel) return;
-            sel.value = lang;
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
-            // Close popup
-            document.getElementById('pm-gear-popup').style.display = 'none';
+            var root = document.querySelector('.gear-root');
+            if (root) root.classList.toggle('active');
         };
         // Close popup on click outside
         document.addEventListener('click', function(e) {
-            var w = document.getElementById('pm-gear-wrap');
-            var p = document.getElementById('pm-gear-popup');
-            if (p && p.style.display === 'flex' && w && !w.contains(e.target)) {
-                p.style.display = 'none';
+            var root = document.querySelector('.gear-root');
+            var icon = document.getElementById('pm-gear-icon');
+            if (root && root.classList.contains('active') && icon && !e.target.closest('.gear-root')) {
+                root.classList.remove('active');
             }
         });
     })();
@@ -2165,27 +2150,22 @@ def build_ui() -> gr.Blocks:
         header_html = gr.HTML(_build_header_html(DEFAULT_LANG))
 
         # ── Floating gear popup (bottom-right) ──
+        # El dropdown de idioma es un componente REAL de Gradio, no un botón HTML
         with gr.Row(elem_classes=["gear-root"]):
-            gear_icon = gr.HTML('''
-<div id="pm-gear-wrap">
-    <span id="pm-gear-icon" onclick="__pmTogglePopup()">⚙️</span>
-    <div id="pm-gear-popup">
-        <button class="pm-gear-lang" onclick="__pmSetLang('es')">🇪🇸 ES</button>
-        <button class="pm-gear-lang" onclick="__pmSetLang('en')">🇬🇧 EN</button>
-        <button class="pm-gear-lang" onclick="__pmSetLang('pt')">🇧🇷 PT</button>
-        <div class="pm-gear-divider"></div>
-        <button id="pm-theme-toggle" onclick="window.__pmToggleTheme()">☀️</button>
-    </div>
-</div>
-            ''')
-            lang_dropdown = gr.Dropdown(
-                choices=[("🇪🇸 Español", "es"), ("🇬🇧 English", "en"), ("🇧🇷 Português", "pt")],
-                value=DEFAULT_LANG,
-                label=t0["lang_label"],
-                interactive=True,
-                container=True, show_label=False,
-                elem_classes=["pm-lang-hidden"],
-            )
+            gr.HTML('<span id="pm-gear-icon" onclick="__pmTogglePopup()">⚙️</span>')
+            with gr.Column(elem_classes=["gear-popup-content"]):
+                lang_dropdown = gr.Dropdown(
+                    choices=[("🇪🇸 ES", "es"), ("🇬🇧 EN", "en"), ("🇧🇷 PT", "pt")],
+                    value=DEFAULT_LANG,
+                    interactive=True,
+                    show_label=False,
+                    container=False,
+                    min_width=60,
+                    elem_classes=["gear-dropdown"],
+                )
+                theme_toggle = gr.HTML(
+                    '<button id="pm-theme-toggle" onclick="window.__pmToggleTheme()">☀️</button>'
+                )
 
         with gr.Row():
             # ── IZQUIERDA: Video + historial + calibración + referencia ──
