@@ -45,6 +45,13 @@ except ImportError:
 DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 USE_FP16: bool = False  # Half-precision (FP16) — activado si GPU lo soporta
 INFER_IMGSZ: int = 256  # Tamaño de inferencia (adaptativo según hardware)
+INFER_CONF: float = 0.25  # Confianza mínima de detección (tradeoff calidad/FPS)
+STREAM_EVERY: float = 0.03  # Intervalo objetivo entre frames enviados a backend
+MAX_PERSONS: int = 4  # Máximo de personas a detectar por frame
+
+_gpu_name: str = ""
+_gpu_vram_gb: float = 0.0
+_cpu_count: int = 0
 
 print(f"[INFO] Dispositivo de inferencia detectado: {DEVICE.upper()}")
 if DEVICE == "cuda":
@@ -67,7 +74,19 @@ if DEVICE == "cuda":
         print(f"[INFO] ✓ FP16 activado (soporte básico, compute {_gpu_compute})")
     else:
         print(f"[INFO] ✗ FP16 no disponible (compute {_gpu_compute} < 5.3) — usando FP32")
-    INFER_IMGSZ = 256  # GPU: tamaño estándar
+    # Perfil base por hardware real
+    if _gpu_vram_gb >= 8:
+        INFER_IMGSZ = 288
+        STREAM_EVERY = 0.02
+        MAX_PERSONS = 5
+    elif _gpu_vram_gb >= 6:
+        INFER_IMGSZ = 256
+        STREAM_EVERY = 0.025
+        MAX_PERSONS = 4
+    else:
+        INFER_IMGSZ = 224
+        STREAM_EVERY = 0.03
+        MAX_PERSONS = 3
 else:
     # ── Optimizaciones CPU ────────────────────────────────────────────────
     import os
@@ -76,7 +95,20 @@ else:
     _optimal_threads = max(2, min(_cpu_count, 8))
     torch.set_num_threads(_optimal_threads)
     torch.set_num_interop_threads(max(1, _optimal_threads // 2))
-    INFER_IMGSZ = 192  # CPU: tamaño reducido para inferencia más rápida
+    # Perfil base por CPU real
+    if _cpu_count >= 12:
+        INFER_IMGSZ = 224
+        STREAM_EVERY = 0.05
+        MAX_PERSONS = 2
+    elif _cpu_count >= 8:
+        INFER_IMGSZ = 192
+        STREAM_EVERY = 0.06
+        MAX_PERSONS = 2
+    else:
+        INFER_IMGSZ = 160
+        STREAM_EVERY = 0.08
+        MAX_PERSONS = 1
+    INFER_CONF = 0.30
     print(f"[INFO] CPU: {_cpu_count} cores · PyTorch threads: {_optimal_threads}")
     print(f"[INFO] Tamaño de inferencia reducido: {INFER_IMGSZ}px (optimización CPU)")
     print("[INFO] Sin GPU CUDA — inferencia en CPU (FP32)")
@@ -87,13 +119,13 @@ else:
 if DEVICE == "cuda":
     SKIP_RATIO = 1 if USE_FP16 else 2
 else:
-    SKIP_RATIO = 4  # CPU necesita más skip para mantener fluidez
+    SKIP_RATIO = 2 if _cpu_count >= 12 else 3 if _cpu_count >= 8 else 4
 
 # ── Info string para UI (adaptativo) ─────────────────────────────────────────
 if DEVICE == "cuda":
-    _GPU_STATUS = f"🟢 GPU: {_gpu_name} ({_gpu_vram_gb:.1f}GB) · FP16: {'✓' if USE_FP16 else '✗'} · Skip: 1/{SKIP_RATIO}"
+    _GPU_STATUS = f"🟢 GPU: {_gpu_name} ({_gpu_vram_gb:.1f}GB) · FP16: {'✓' if USE_FP16 else '✗'} · img:{INFER_IMGSZ}px · max_det:{MAX_PERSONS} · skip 1/{SKIP_RATIO}"
 else:
-    _GPU_STATUS = f"🟡 CPU ({_cpu_count} cores) · FP32 · img:{INFER_IMGSZ}px · Skip: 1/{SKIP_RATIO}"
+    _GPU_STATUS = f"🟡 CPU ({_cpu_count} cores) · FP32 · img:{INFER_IMGSZ}px · max_det:{MAX_PERSONS} · skip 1/{SKIP_RATIO}"
 LANGS: dict[str, dict[str, str]] = {
     "es": {
         "title":          "Sistema de Monitoreo Postural en Tiempo Real",
@@ -377,7 +409,6 @@ MODEL_LOOKUP: dict[str, dict[str, str]] = {c["name"]: c for c in MODEL_CONFIGS}
 # ── Suavizado EMA para keypoints (anti-flicker) ───────────────────────
 EMA_ALPHA: float = 0.35          # Factor de suavizado (0=sin cambio, 1=sin suavizar)
 KP_GRACE_FRAMES: int = 8         # Frames de gracia antes de descartar un keypoint perdido
-MAX_PERSONS: int = 6 # Detección máxima de personas
 
 # ── Estado global ────────────────────────────────────────────────────────────
 class AppState:
@@ -425,9 +456,92 @@ class AppState:
             # Warmup con tamaño de inferencia real para compilar kernels
             dummy = np.zeros((INFER_IMGSZ, INFER_IMGSZ, 3), dtype=np.uint8)
             self.model(dummy, verbose=False, imgsz=INFER_IMGSZ, half=USE_FP16)
+            _autotune_runtime_profile(self.model)
             print(f"[INFO] Modelo cargado en {next(self.model.model.parameters()).device} ✓")
             if DEVICE == "cuda":
                 print(f"[INFO] VRAM usada: {torch.cuda.memory_allocated()/1024**2:.0f} MB")
+
+
+def _refresh_runtime_status() -> None:
+    """Refresca el texto de estado de hardware mostrado en el header."""
+    global _GPU_STATUS
+    if DEVICE == "cuda":
+        _GPU_STATUS = (
+            f"🟢 GPU: {_gpu_name} ({_gpu_vram_gb:.1f}GB) · FP16: {'✓' if USE_FP16 else '✗'} "
+            f"· img:{INFER_IMGSZ}px · max_det:{MAX_PERSONS} · skip 1/{SKIP_RATIO} · {1.0/STREAM_EVERY:.0f}fps objetivo"
+        )
+    else:
+        _GPU_STATUS = (
+            f"🟡 CPU ({_cpu_count} cores) · FP32 · img:{INFER_IMGSZ}px · max_det:{MAX_PERSONS} "
+            f"· skip 1/{SKIP_RATIO} · {1.0/STREAM_EVERY:.0f}fps objetivo"
+        )
+
+
+def _autotune_runtime_profile(model: YOLO) -> None:
+    """Autoajusta parámetros de inferencia según rendimiento real del equipo."""
+    global INFER_IMGSZ, STREAM_EVERY, SKIP_RATIO
+
+    # Probar tamaños cercanos al perfil base para este hardware
+    candidates = sorted({INFER_IMGSZ, max(160, INFER_IMGSZ - 32), max(160, INFER_IMGSZ - 64)}, reverse=True)
+    target_ms = 22.0 if DEVICE == "cuda" else 55.0
+    runs = 8 if DEVICE == "cuda" else 4
+    warmups = 2
+    max_det_bench = min(MAX_PERSONS, 3)
+
+    print("[TUNE] Autoajuste de rendimiento iniciado...")
+    bench: list[tuple[int, float]] = []
+
+    for size in candidates:
+        dummy = np.zeros((size, size, 3), dtype=np.uint8)
+        with torch.inference_mode():
+            for _ in range(warmups):
+                model(dummy, verbose=False, conf=INFER_CONF, imgsz=size, max_det=max_det_bench, half=USE_FP16)
+        if DEVICE == "cuda":
+            torch.cuda.synchronize()
+
+        t0 = time.perf_counter()
+        with torch.inference_mode():
+            for _ in range(runs):
+                model(dummy, verbose=False, conf=INFER_CONF, imgsz=size, max_det=max_det_bench, half=USE_FP16)
+        if DEVICE == "cuda":
+            torch.cuda.synchronize()
+
+        avg_ms = (time.perf_counter() - t0) * 1000.0 / runs
+        bench.append((size, avg_ms))
+        print(f"[TUNE] imgsz={size}: {avg_ms:.1f}ms")
+
+    # Elegir el tamaño MÁS GRANDE que cumpla target (prioriza calidad sin perder FPS)
+    under_target = [x for x in bench if x[1] <= target_ms]
+    if under_target:
+        best_size, best_ms = max(under_target, key=lambda x: x[0])
+    else:
+        best_size, best_ms = min(bench, key=lambda x: x[1])
+
+    INFER_IMGSZ = best_size
+
+    # Ajustar ritmo de stream y skip para estabilidad visual + FPS sostenido
+    infer_s = max(best_ms / 1000.0, 0.001)
+    if DEVICE == "cuda":
+        STREAM_EVERY = max(0.018, min(0.04, infer_s * 1.05))
+        SKIP_RATIO = 1 if best_ms <= 30.0 else 2
+    else:
+        STREAM_EVERY = max(0.05, min(0.12, infer_s * 1.35))
+        if best_ms <= 45.0:
+            SKIP_RATIO = 2
+        elif best_ms <= 70.0:
+            SKIP_RATIO = 3
+        else:
+            SKIP_RATIO = 4
+
+    print(
+        f"[TUNE] Perfil activo → imgsz={INFER_IMGSZ}, max_det={MAX_PERSONS}, "
+        f"skip=1/{SKIP_RATIO}, stream_every={STREAM_EVERY:.3f}s (~{1.0/STREAM_EVERY:.1f}fps), "
+        f"latencia={best_ms:.1f}ms"
+    )
+    _refresh_runtime_status()
+
+
+_refresh_runtime_status()
 
 
 state = AppState()
@@ -484,6 +598,27 @@ def _nms_persons(boxes: np.ndarray, kp_data: np.ndarray, iou_thresh: float = 0.3
     keep.sort()
     return kp_data[np.array(keep)]
 
+
+def _update_fps_clock() -> float:
+    """Actualiza y retorna el FPS de salida real del stream."""
+    state._fps_times.append(time.time())
+    if len(state._fps_times) > 30:
+        state._fps_times.pop(0)
+    if len(state._fps_times) >= 2:
+        elapsed = state._fps_times[-1] - state._fps_times[0]
+        if elapsed > 0:
+            state._current_fps = (len(state._fps_times) - 1) / elapsed
+    return state._current_fps
+
+
+def _last_good_frame_rgb(fallback_rgb: Optional[np.ndarray] = None) -> np.ndarray:
+    """Retorna el último frame válido para evitar flashes/blinks entre cortes."""
+    if state._last_overlay_bgr is not None:
+        return cv2.cvtColor(state._last_overlay_bgr, cv2.COLOR_BGR2RGB)
+    if fallback_rgb is not None:
+        return fallback_rgb
+    return np.zeros((480, 640, 3), dtype=np.uint8)
+
 # ── Función principal: procesar un frame de webcam ───────────────────────────
 def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str]:
     """
@@ -496,14 +631,29 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     Returns:
         (frame_con_overlay, metrics_json)
     """
+    def _metrics_from_last_or_nd(fps_val: float) -> str:
+        cpi_s, stat_s, lumbar_s, curv_s, bad_s, alert_s = state._last_posture_result or (0, "NO DETECTADO", 0, 0, 0, False)
+        return _build_metrics_json(
+            cpi_s,
+            stat_s,
+            bad_s,
+            lumbar_s,
+            curv_s,
+            fps_val,
+            state._last_conf,
+            alert_s,
+            history=state._cpi_history,
+        )
+
     if frame is None:
-        blank = np.zeros((480, 640, 3), dtype=np.uint8)
-        return blank, _build_metrics_json(history=[])
+        fps_now = _update_fps_clock()
+        return _last_good_frame_rgb(), _metrics_from_last_or_nd(fps_now)
 
     # Buscar modelo seleccionado (O(1) con dict precomputado)
     cfg = MODEL_LOOKUP.get(model_choice)
     if cfg is None:
-        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
+        fps_now = _update_fps_clock()
+        return _last_good_frame_rgb(frame), _metrics_from_last_or_nd(fps_now)
     model_path = cfg["path"]
     state.model_key = cfg["key"]
 
@@ -511,24 +661,15 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     try:
         state.load_model(model_path)
     except Exception as e:
-        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
+        fps_now = _update_fps_clock()
+        return _last_good_frame_rgb(frame), _metrics_from_last_or_nd(fps_now)
 
     # ── Frame skipping: skip every Nth frame (save YOLO inference) ────
     state._skip_counter += 1
     if state._skip_counter % SKIP_RATIO != 0 and state._last_overlay_bgr is not None:
         # Skip path: reuse overlay from last inference frame (sin copia — cvtColor no muta src)
-        cpi_s, stat_s, lumbar_s, curv_s, bad_s, alert_s = state._last_posture_result or (0, "NO DETECTADO", 0, 0, 0, False)
-        out_rgb = cv2.cvtColor(state._last_overlay_bgr, cv2.COLOR_BGR2RGB)
-
-        # FPS tracking: include skip frames for accurate display rate
-        state._fps_times.append(time.time())
-        if len(state._fps_times) > 30:
-            state._fps_times.pop(0)
-        if len(state._fps_times) >= 2:
-            elapsed = state._fps_times[-1] - state._fps_times[0]
-            state._current_fps = (len(state._fps_times) - 1) / elapsed if elapsed > 0 else 0
-
-        return out_rgb, _build_metrics_json(cpi_s, stat_s, bad_s, lumbar_s, curv_s, state._current_fps, state._last_conf, alert_s, history=state._cpi_history)
+        fps_now = _update_fps_clock()
+        return _last_good_frame_rgb(frame), _metrics_from_last_or_nd(fps_now)
 
     # Convertir RGB → BGR para YOLO/OpenCV
     frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
@@ -536,10 +677,11 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     # ── YOLO inference (FP16 si GPU lo soporta) ───────────────────────────
     try:
         t_inf = time.time()
-        preds = state.model(frame_bgr, verbose=False, conf=0.25, imgsz=INFER_IMGSZ, max_det=MAX_PERSONS, half=USE_FP16)
+        preds = state.model(frame_bgr, verbose=False, conf=INFER_CONF, imgsz=INFER_IMGSZ, max_det=MAX_PERSONS, half=USE_FP16)
         inference_ms = (time.time() - t_inf) * 1000
     except Exception as e:
-        return frame, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False), _build_sparkline_html([])
+        fps_now = _update_fps_clock()
+        return _last_good_frame_rgb(frame), _metrics_from_last_or_nd(fps_now)
 
     # ── Extraer keypoints (multi-persona) + EMA smoothing ────────────
     if not preds or preds[0].keypoints is None:
@@ -554,7 +696,8 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         state._last_conf = 0.0
-        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
+        fps_now = _update_fps_clock()
+        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, fps_now, 0.0, False, history=state._cpi_history)
 
     kp_data = preds[0].keypoints.data.cpu().numpy() # [N_personas, 9_kp, 3]
 
@@ -576,7 +719,8 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         state._last_overlay_bgr = out.copy()
         out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
         state._last_conf = 0.0
-        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, 0, 0.0, False, history=[])
+        fps_now = _update_fps_clock()
+        return out_rgb, _build_metrics_json(0, "NO DETECTADO", 0, 0, 0, fps_now, 0.0, False, history=state._cpi_history)
 
     # ── Seleccionar persona principal (mayor confianza promedio) ────────
     confidences = kp_data[:, :, 2]
@@ -745,19 +889,14 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
     out_rgb = cv2.cvtColor(out, cv2.COLOR_BGR2RGB)
 
     # ── Log de FPS cada 30 frames ─────────────────────────────────────────
-    state._fps_times.append(time.time())
-    if len(state._fps_times) > 30:
-        state._fps_times.pop(0)
-    if len(state._fps_times) >= 2:
-        elapsed = state._fps_times[-1] - state._fps_times[0]
-        state._current_fps = (len(state._fps_times) - 1) / elapsed if elapsed > 0 else 0
-    if state.frame_count % 30 == 0 and state._current_fps > 0:
+    fps_now = _update_fps_clock()
+    if state.frame_count % 30 == 0 and fps_now > 0:
         print(f"[FPS] Frame {state.frame_count}: {state._current_fps:.1f} fps | "
               f"inferencia: {inference_ms:.1f}ms GPU | "
               f"CPI: {cpi:.0f} | {stat_val}")
 
     # Build JSON — always fresh; JS polling loop handles DOM updates
-    metrics_json = _build_metrics_json(cpi, stat_val, bad, lumbar, curv, state._current_fps, avg_confidence, is_alert, history=state._cpi_history)
+    metrics_json = _build_metrics_json(cpi, stat_val, bad, lumbar, curv, fps_now, avg_confidence, is_alert, history=state._cpi_history)
 
     return (
         out_rgb,
@@ -1254,7 +1393,7 @@ body, html, .gradio-container {
 /* ── Alert popup ── */
 #pm-alert-popup {
     display: none; opacity: 0;
-    position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+    position: fixed; bottom: 24px; left: 24px; right: auto; z-index: 9999;
     background: linear-gradient(135deg, #ef4444, #dc2626);
     color: #fff;
     border-radius: 12px;
@@ -1399,23 +1538,23 @@ body, html, .gradio-container {
 :root[data-pm-theme="light"] .pm-leftcol .block .image-container,
 :root[data-pm-theme="light"] .pm-leftcol .block .upload-container { transition: none !important; }
 
-/* Fondo oscuro FIJO en TODA la cadena del video (nunca cambia con el theme)
-   Evita que el fondo blanco se vea durante transiciones/reconexiones
+/* Fondo TEMÁTICO en la cadena del video (ya no fijo oscuro)
+   Mantiene estabilidad visual sin dejar una caja negra en tema claro.
    Cubre: image-container > upload-container > wrap > video
    min-height evita que el contenedor se achique cuando el video no está activo */
 .pm-leftcol .block .image-container,
 .pm-leftcol .block .upload-container,
 .pm-leftcol .block .upload-container .wrap {
-    background: #0f172a !important;
-    background-color: #0f172a !important;
+    background: var(--pm-surface) !important;
+    background-color: var(--pm-surface) !important;
     min-height: 360px !important;
 }
 .pm-leftcol .block .image-container * {
-    background: #0f172a !important;
-    background-color: #0f172a !important;
+    background: var(--pm-surface) !important;
+    background-color: var(--pm-surface) !important;
 }
 .pm-leftcol .block video {
-    background: #000000 !important;
+    background: var(--pm-surface-2) !important;
     min-height: 360px !important;
 }
 .pm-leftcol .block video * {
@@ -1503,13 +1642,15 @@ body, html, .gradio-container {
     color: #0f172a !important;
 }
 
-/* ── Prevent Video Flicker ── */
+/* ── Prevent Video Flicker (sin contenedor oscuro fijo) ──
+   Evitamos transparencias inestables en stream, pero con fondo por tema. */
 .pm-leftcol .image-frame,
 .pm-leftcol .image-container,
 .pm-leftcol img,
 .pm-leftcol video,
+.pm-leftcol canvas,
 .pm-leftcol [data-testid="image"] {
-    background-color: transparent !important;
+    background-color: var(--pm-surface) !important;
     transition: none !important;
     animation: none !important;
 }
@@ -1865,7 +2006,7 @@ def _build_static_metrics_panel(lang: str = "es") -> str:
   .pm-status-icon   {{ font-size: 13px; font-weight: 700; }}
   .pm-status-detail {{ font-size: 11px; color: #94a3b8; margin-top: 4px; }}
   #pm-sparkline-svg {{ display: block; width: 100%; }}
-  #pm-alert-popup {{ display: none; opacity: 0; position: fixed; bottom: 24px; right: 24px; z-index: 9999; background: rgba(239,68,68,0.95); color: #fff; border-radius: 10px; padding: 12px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 8px 32px rgba(239,68,68,0.4); transition: opacity 0.3s ease; }}
+  #pm-alert-popup {{ display: none; opacity: 0; position: fixed; bottom: 24px; left: 24px; right: auto; z-index: 9999; background: rgba(239,68,68,0.95); color: #fff; border-radius: 10px; padding: 12px 18px; font-size: 13px; font-weight: 700; box-shadow: 0 8px 32px rgba(239,68,68,0.4); transition: opacity 0.3s ease; }}
 </style>
 
 <!-- Carrier de idioma: el JS lee este div para saber qué idioma mostrar -->
@@ -2232,8 +2373,10 @@ def build_ui() -> gr.Blocks:
             fn=process_frame,
             inputs=[webcam, model_dropdown],
             outputs=[webcam, metrics_data],
-            stream_every=0.03,
+            stream_every=STREAM_EVERY,
             time_limit=None,
+            queue=False,
+            show_progress="hidden",
         )
 
         model_dropdown.change(
