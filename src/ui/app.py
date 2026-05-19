@@ -2791,6 +2791,9 @@ def build_ui() -> gr.Blocks:
     head_script = f'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap"><script>{theme_js}({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
+        css=CSS,
+        theme=THEME,
+        head=head_script,
     ) as app:
         session_state = gr.State(False)
 
@@ -3054,7 +3057,7 @@ def build_ui() -> gr.Blocks:
             show_progress="hidden",
         )
 
-    return app, head_script
+    return app
 
 
 # ── Limpieza de cache ────────────────────────────────────────────────────────
@@ -3100,44 +3103,101 @@ if __name__ == "__main__":
     _kill_port(7860)
 
     # Precargar modelo default ANTES de arrancar servidor
-    # Así el primer frame de webcam no tiene que esperar la carga + warmup
     print("[INIT] Precargando modelo default para arranque instantáneo...")
     state.load_model(MODEL_CONFIGS[0]["path"])
-    print("[INIT] Modelo listo. Iniciando servidor Gradio...\n")
+    print("[INIT] Modelo listo. Iniciando servidor...\n")
 
-    # Configure allowed_paths for future PWA static serving (if PWA dir exists)
     _pwa_dir = str(Path(__file__).resolve().parent / "pwa")
     _pwa_paths = [_pwa_dir] if os.path.isdir(_pwa_dir) else []
 
-    app, head_script = build_ui()
-    app.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        favicon_path="src/ui/pwa/icon.png",
-        share=False,
-        show_error=True,
-        prevent_thread_lock=True,
-        css=CSS,
-        theme=THEME,
-        head=head_script,
-        allowed_paths=_pwa_paths,
-    )
+    demo = build_ui()
 
-    # ── Start WebSocket server in background thread (if enabled) ──────────
     if _POSTURE_WS_ENABLED:
-        from src.ws.server import start_ws_server
-        start_ws_server(host="0.0.0.0", port=8765)
-        print("[WS] WebSocket server started on port 8765")
+        # ── Production mode: FastAPI + Gradio mount + WebSocket at /ws ──────
+        # Runs everything on port 7860 — no separate port needed for WS.
+        # Traefik routes all traffic to port 7860; /ws is handled internally.
+        import asyncio as _asyncio
+        import json as _json_ws
+        import uvicorn as _uvicorn
+        from fastapi import FastAPI as _FastAPI
+        from fastapi import WebSocket as _FastAPIWebSocket
+        from starlette.websockets import WebSocketState as _WSState, WebSocketDisconnect as _WSDis
 
-    # Mantener el proceso vivo mientras el servidor corre
-    try:
-        while True:
-            time.sleep(1)
-    except (KeyboardInterrupt, SystemExit):
-        if _POSTURE_WS_ENABLED:
-            from src.ws.server import stop_ws_server as _stop_ws
+        _fastapi_app = _FastAPI()
+
+        class _WsAdapter:
+            """Makes a FastAPI WebSocket look like a websockets.WebSocketServerProtocol."""
+            def __init__(self, ws: _FastAPIWebSocket):
+                self._ws = ws
+
+            async def send(self, data: str) -> None:
+                await self._ws.send_text(data)
+
+            @property
+            def state(self):
+                from websockets.protocol import State as _S
+                return _S.OPEN if self._ws.client_state == _WSState.CONNECTED else _S.CLOSED
+
+        @_fastapi_app.websocket("/ws")
+        async def _ws_endpoint(ws: _FastAPIWebSocket):
+            await ws.accept()
+            # Store the running event loop so Gradio threads can dispatch alerts
+            _ws_manager.set_loop(_asyncio.get_running_loop())
+            adapter = _WsAdapter(ws)
+            paired_sid = None
             try:
-                _stop_ws()
+                while True:
+                    try:
+                        raw = await ws.receive_text()
+                    except (_WSDis, Exception):
+                        break
+                    try:
+                        msg = _json_ws.loads(raw)
+                    except Exception:
+                        await ws.send_text(_json_ws.dumps({"type": "error", "message": "Invalid JSON"}))
+                        continue
+                    mtype = msg.get("type", "")
+                    if mtype == "pair":
+                        sid = msg.get("sid", "")
+                        if len(sid) >= 8:
+                            ok = await _ws_manager.pair(sid, adapter)
+                            if ok:
+                                paired_sid = sid
+                                await ws.send_text(_json_ws.dumps({"type": "paired", "sid": sid}))
+                                print(f"[WS] Client paired: sid={sid[:8]}...")
+                            else:
+                                await ws.send_text(_json_ws.dumps({"type": "error", "message": "SID already paired"}))
+                    elif mtype == "pong":
+                        if paired_sid:
+                            ctx = _ws_manager.get_session(paired_sid)
+                            if ctx:
+                                ctx.touch()
+                    elif mtype == "unpair":
+                        if paired_sid:
+                            await _ws_manager.unpair(paired_sid)
+                            paired_sid = None
+                            await ws.send_text(_json_ws.dumps({"type": "unpaired"}))
             except Exception:
                 pass
-        app.close()
+            finally:
+                if paired_sid:
+                    await _ws_manager.unpair(paired_sid)
+                    print(f"[WS] Client disconnected: sid={paired_sid[:8]}...")
+
+        _fastapi_app = gr.mount_gradio_app(
+            _fastapi_app, demo, path="/",
+            allowed_paths=_pwa_paths,
+        )
+        print("[WS] WebSocket endpoint ready at /ws (same port 7860)")
+        _uvicorn.run(_fastapi_app, host="0.0.0.0", port=7860, log_level="warning")
+
+    else:
+        # ── Local/dev mode: standard Gradio launch ───────────────────────────
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=7860,
+            favicon_path="src/ui/pwa/icon.png",
+            share=False,
+            show_error=True,
+            allowed_paths=_pwa_paths,
+        )
