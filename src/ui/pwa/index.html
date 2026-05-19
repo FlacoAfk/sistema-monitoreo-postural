@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PostureMonitor" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="application-name" content="PostureMonitor" />
+
+  <link rel="manifest" href="/pwa/manifest.json" />
+  <link rel="icon" type="image/png" href="/pwa/icon.png" />
+  <link rel="apple-touch-icon" href="/pwa/icon.png" />
+
+  <!-- Preconnect to CDN for jsQR -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+
+  <title>PostureMonitor — Alertas Posturales</title>
+
+  <link rel="stylesheet" href="/pwa/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ── Header ── -->
+    <header class="app-header">
+      <h1>PostureMonitor</h1>
+      <div class="subtitle">Monitoreo Postural en Tiempo Real</div>
+    </header>
+
+    <!-- ── Pairing Status ── -->
+    <div class="pairing-status status-disconnected" id="pairing-status">
+      <span class="status-dot dot-disconnected" id="status-dot"></span>
+      <span id="status-text">○ No vinculado — Escanea el QR</span>
+    </div>
+
+    <!-- ── Reconnect Notice ── -->
+    <div class="reconnect-notice" id="reconnect-notice"></div>
+
+    <!-- ── Scanner Card ── -->
+    <div class="scanner-card" id="scan-container">
+      <div class="section-title">Vincular Dispositivo</div>
+
+      <div class="scanner-viewport" id="scanner-viewport">
+        <video id="qr-video" playsinline autoplay muted></video>
+        <canvas id="qr-canvas" style="display:none"></canvas>
+        <div class="scan-corner-tl"></div>
+        <div class="scan-corner-tr"></div>
+        <div class="scan-corner-bl"></div>
+        <div class="scan-corner-br"></div>
+        <div class="scan-line"></div>
+      </div>
+
+      <div class="scanner-hint" id="scanner-hint">
+        Escanea el código QR del dashboard para vincular tu móvil
+      </div>
+
+      <button class="btn btn-primary" id="scan-btn">📷 Escanear QR</button>
+    </div>
+
+    <!-- ── Session Info ── -->
+    <div class="session-info" style="display:none">
+      <span class="sid-label">Sesión:</span>
+      <span class="sid-value" id="session-id">—</span>
+      <button class="btn btn-secondary" id="rescan-btn" style="padding:4px 12px;font-size:11px">↻ Re-escanear</button>
+    </div>
+
+    <!-- ── Alert Cards ── -->
+    <div class="alerts-container" id="alerts-container">
+      <div class="section-title">Alertas en Tiempo Real</div>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="empty-state">
+        <div class="icon">📱</div>
+        <h3>Esperando alertas</h3>
+        <p>
+          Escanea el código QR en el dashboard para vincular tu dispositivo.
+          Recibirás alertas posturales aquí en tiempo real.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- jsQR library (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"
+          integrity="sha256-cq1fZ6pvPCHNsMqRF6YYpuP96RsPBR3GXCGmB1GvVuo="
+          crossorigin="anonymous">
+  </script>
+
+  <!-- PWA Application Logic -->
+  <script src="/pwa/app.js"></script>
+</body>
+</html>

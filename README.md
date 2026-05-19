@@ -86,7 +86,27 @@ sistema-monitoreo-postural/
 │   ├── yolov26m.pt   ✓ medium — evidencia de entrenamiento
 │   └── yolov11m.pt   ✗ 106MB — supera límite GitHub; pedirlo al equipo
 ├── src/
-│   └── app.py
+│   ├── core/             # Lógica de dominio — PostureAnalyzer, CPI math
+│   │   ├── __init__.py
+│   │   └── posture_analyzer.py
+│   ├── inference/        # Runtime ML — YOLO inference, keypoints
+│   │   ├── __init__.py
+│   │   └── inference_engine.py
+│   ├── ui/               # Presentación — Gradio dashboard
+│   │   ├── __init__.py
+│   │   ├── app.py
+│   │   └── audio_alert.py
+│   ├── tools/            # Utilidades — benchmark
+│   │   ├── __init__.py
+│   │   └── model_benchmark.py
+│   ├── tests/            # Tests del sistema
+│   │   ├── __init__.py
+│   │   └── test_system.py
+│   └── __init__.py
+├── Dockerfile            # CPU — despliegue contenerizado
+├── Dockerfile.gpu        # GPU — requiere NVIDIA Container Toolkit
+├── docker-compose.yml    # Orquestación con perfil CPU/GPU
+├── .dockerignore
 ├── requirements.txt
 └── README.md
 ```
@@ -112,10 +132,20 @@ sistema-monitoreo-postural/
 
 ```bash
 cd sistema-monitoreo-postural
-python src/app.py
+python -m src.ui.app
 ```
 
 Abrí el navegador en **http://127.0.0.1:7860**
+
+**Con Docker (CPU, recomendado para despliegue):**
+```bash
+docker compose up --build
+```
+
+**Con Docker (GPU):**
+```bash
+docker compose --profile gpu up --build
+```
 
 #### Funcionalidades del dashboard
 
@@ -137,17 +167,12 @@ Abrí el navegador en **http://127.0.0.1:7860**
 
 ```bash
 cd sistema-monitoreo-postural
-python src/model_benchmark.py
+python -m src.tools.model_benchmark
 ```
 
-### Validación de keypoints
+### Validación de keypoints (deprecated)
 
-```bash
-cd sistema-monitoreo-postural
-python validate_keypoints.py
-```
-
-Genera overlays y JSON en `keypoint_output/`.
+La herramienta `validate_keypoints.py` fue removida del repositorio. La funcionalidad fue reemplazada por pruebas automatizadas en `src/tests/test_system.py` y el benchmark tool `src/tools/model_benchmark.py`.
 
 ---
 
@@ -182,16 +207,31 @@ El header del dashboard muestra el estado de hardware detectado:
 ```
 sistema-monitoreo-postural/
 ├── src/
-│   ├── app.py                 # Dashboard Gradio (UI tiempo real)
-│   ├── inference_engine.py    # Motor YOLO-Pose (carga, inferencia, webcam)
-│   ├── posture_analyzer.py    # CPI — Combined Posture Index (5 keypoints)
-│   ├── model_benchmark.py     # Comparador de modelos
-│   └── test_system.py         # Tests del sistema
-├── models/                    # Pesos entrenados (incluidos en el repo)
+│   ├── core/                  # Lógica de dominio
+│   │   ├── __init__.py
+│   │   └── posture_analyzer.py    # CPI — Combined Posture Index
+│   ├── inference/             # Runtime ML
+│   │   ├── __init__.py
+│   │   └── inference_engine.py    # YOLO-Pose, keypoints, overlay
+│   ├── ui/                    # Presentación
+│   │   ├── __init__.py
+│   │   ├── app.py                 # Dashboard Gradio
+│   │   └── audio_alert.py         # Alerta sonora cross-platform
+│   ├── tools/                 # Utilidades
+│   │   ├── __init__.py
+│   │   └── model_benchmark.py     # Comparador de modelos
+│   ├── tests/                 # Tests del sistema
+│   │   ├── __init__.py
+│   │   └── test_system.py
+│   └── __init__.py
+├── models/                    # Pesos entrenados (.pt)
 ├── docs/
 │   └── INFORME_MODELO_MATEMATICO.md
+├── Dockerfile                 # CPU — despliegue contenerizado
+├── Dockerfile.gpu             # GPU — NVIDIA Container Toolkit
+├── docker-compose.yml         # Orquestación multi-perfil
+├── .dockerignore
 ├── requirements.txt
-├── validate_keypoints.py
 ├── MODELO_MATEMATICO_CPI.md
 ├── README.md
 └── .gitignore
@@ -253,27 +293,33 @@ De 108 submodelos evaluados, 4 seleccionados por score compuesto (mAP50-95 + det
 
 ## Componentes
 
-### `inference_engine.py`
+### `src/inference/inference_engine.py`
 - Carga modelos YOLO-Pose (.pt) con pipeline asíncrono
 - Devuelve `KeypointResult` con 9 keypoints (x, y, confianza)
 - Esqueleto visual: K0→K1→K8→K3→K4 (cadena posterior)
 
-### `posture_analyzer.py`
+### `src/core/posture_analyzer.py`
 - Extrae 5 keypoints (K0, K1, K8, K3, K4)
 - Calcula ángulo lumbar `∠K8-K3-K4` + curvatura escapular normalizada
 - Clasifica: ≤35 CORRECTO, 35–50 ALERTA LEVE, >50 ALERTA CRÍTICA
 - Contador de tiempo acumulado en mala postura
 
-### `app.py`
+### `src/ui/app.py`
 - Dashboard Gradio con streaming de webcam
 - Panel de métricas estático actualizado por JS (sin flicker)
 - Gauge CPI animado, sparkline, indicador de confianza
 - Soporte i18n ES/EN/PT con dropdown de idioma
 - Exportación de sesión a CSV
 
-### `model_benchmark.py`
+### `src/tools/model_benchmark.py`
 - Evalúa los 4 modelos sobre imágenes de prueba
 - Genera JSON con métricas detalladas + gráfica comparativa
+
+### `Dockerfile` / `Dockerfile.gpu`
+- `Dockerfile`: imagen CPU basada en `python:3.11-slim` (~2 GB)
+- `Dockerfile.gpu`: imagen GPU basada en `nvidia/cuda:12.6-runtime` (~6 GB, requiere NVIDIA Container Toolkit)
+- `docker-compose.yml`: perfil CPU por defecto; `--profile gpu` para GPU
+- Volumen `./models:/app/models:ro` para pesos de modelos
 
 ---
 

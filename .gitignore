@@ -1,8 +1,14 @@
-# ── Model weights: solo best.pt de nano/small, excluir todo lo demas ──
+# ── Model weights ────────────────────────────────────────────────────────────
+# Exclude all checkpoints by default
 **/epoch*.pt
 **/last*.pt
 **/last_fixed*.pt
-# Excluir modelos medium (muy grandes >100MB)
+# Whitelist the 4 production models baked into the Docker image
+!yolov11n_pose_b16_lr01/weights/last.pt
+!yolov8s_pose_b8_lr05/weights/last.pt
+!yolov5m_pose_b32_lr01/weights/last.pt
+!yolov26n_pose_b128_lr05/weights/last.pt
+# Exclude large medium-model best.pt (>100MB GitHub limit)
 yolov11m_pose_b64_lr01/weights/best.pt
 yolov5m_pose_b32_lr01/weights/best.pt
 yolov26m_pose_b16_lr03/weights/best.pt
@@ -31,6 +37,10 @@ desktop.ini
 
 # ── AI tools ──
 .atl/
+
+# ── Docker artifacts ──
+*.tar
+.docker/
 
 # ── Temp / outputs ──
 *.tmp
@@ -75,3 +85,8 @@ yolov26m_pose_b16_lr03/
 validate_mentoniano.py
 verify_dataset_labels.py
 imagenes de pruebas del modelo matematico/overlay/k2k1k6_*
+
+# Android build artifacts
+mobile-android/.gradle/
+mobile-android/app/build/
+mobile-android/.idea/

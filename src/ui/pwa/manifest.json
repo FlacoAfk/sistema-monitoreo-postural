@@ -1,0 +1,32 @@
+{
+  "name": "PostureMonitor — Monitoreo Postural",
+  "short_name": "PostureMonitor",
+  "description": "Monitoreo Postural en Tiempo Real — Recibe alertas de tu postura directamente en tu móvil.",
+  "start_url": "/pwa/index.html",
+  "scope": "/pwa/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e1a",
+  "theme_color": "#6366f1",
+  "categories": ["health", "fitness", "medical"],
+  "lang": "es",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": []
+}

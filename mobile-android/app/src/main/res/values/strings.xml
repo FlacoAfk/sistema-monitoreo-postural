@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Posture Monitor</string>
+
+    <!-- WebSocket foreground service -->
+    <string name="ws_channel_name">Conexión WebSocket</string>
+    <string name="ws_notification_text">Manteniendo conexión con el servidor</string>
+
+    <!-- Battery optimization -->
+    <string name="battery_opt_title">Optimización de batería</string>
+    <string name="battery_opt_message">Para mantener la conexión estable, permite que la app funcione en segundo plano sin restricciones.</string>
+    <string name="battery_opt_positive">Ir a configuración</string>
+    <string name="battery_opt_negative">Ahora no</string>
+
+    <!-- Permission explanations -->
+    <string name="permission_notification_title">Notificaciones necesarias</string>
+    <string name="permission_notification_message">La app necesita permisos de notificación para alertarte sobre malas posturas.</string>
+
+    <!-- Connection states -->
+    <string name="status_connected">Conectado</string>
+    <string name="status_connecting">Conectando…</string>
+    <string name="status_disconnected">No conectado</string>
+    <string name="error_invalid_qr">QR no válido</string>
+</resources>

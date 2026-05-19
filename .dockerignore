@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Large model base files (NOT needed at runtime — only trained weights are)
+models/
+src/models/
+
+# Training runs — exclude epoch checkpoints (heavy) and base pretrained weights
+# last.pt from each trained model is KEPT and baked into the image (~83 MB total)
+yolo*/weights/epoch*.pt
+yolo*/weights/best.pt
+# Exclude non-inference training dirs (other runs not in MODEL_CONFIGS)
+yolov5n_pose*/
+yolov8n_pose*/
+yolov11s_pose*/
+# Exclude training visualization images (not needed at runtime)
+yolo*/*.png
+yolo*/*.jpg
+yolo*/*.csv
+
+# Mobile app (not needed in container)
+mobile-android/
+
+# Dev/temp files
+*.bak
+_fix*.py
+_diag*.py
+*.log
+.env
+
+# Git
+.git/
+.gitignore
+
+# Notebooks
+*.ipynb

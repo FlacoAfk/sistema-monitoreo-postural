@@ -6,8 +6,15 @@
 #   pip install torch==2.11.0 torchvision --index-url https://download.pytorch.org/whl/cpu
 # GPU NVIDIA CUDA 12.6 (recomendado):
 #   pip install torch==2.11.0+cu126 torchvision --index-url https://download.pytorch.org/whl/cu126
+#
+# Docker:
+#   docker compose up --build
 
 ultralytics==8.4.42
 opencv-python==4.11.0.86
 numpy==1.26.4
-gradio==6.14.0
+gradio[oauth]==6.14.0
+
+# Mobile QR notifications — WebSocket + QR generation
+websockets>=12.0
+qrcode[pil]>=7.4

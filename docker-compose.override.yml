@@ -1,0 +1,32 @@
+# Local development overrides — NOT for Dockply production
+# Applied automatically by: docker compose up
+# Skip for production with: docker compose -f docker-compose.yml up
+version: "3.9"
+
+services:
+  app:
+    build:
+      dockerfile: Dockerfile.gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - POSTURE_WS_ENABLED=true
+      # Local dev: QR shows ws://LAN_IP:8765 so the phone can connect on the same network
+      - POSTURE_WS_HOST=192.168.1.2
+    ports:
+      - "7860:7860"   # Gradio — direct access during dev
+      - "8765:8765"   # WebSocket — direct access during dev
+    # Bind-mount model dirs so you can swap weights without rebuilding
+    volumes:
+      - ./yolov11n_pose_b16_lr01:/app/yolov11n_pose_b16_lr01:ro
+      - ./yolov8s_pose_b8_lr05:/app/yolov8s_pose_b8_lr05:ro
+      - ./yolov5m_pose_b32_lr01:/app/yolov5m_pose_b32_lr01:ro
+      - ./yolov26n_pose_b128_lr05:/app/yolov26n_pose_b128_lr05:ro
+
+  nginx:
+    profiles: ["prod"]   # Skip nginx in local dev — access Gradio directly on :7860
