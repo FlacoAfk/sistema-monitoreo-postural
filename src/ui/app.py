@@ -145,6 +145,15 @@ LANGS: dict[str, dict[str, str]] = {
         "alert_interval_hint": "_Cada cuántos segundos se repite la alerta en la app mientras la postura sea mala_",
         "alert_threshold": "Umbral de alerta (s)",
         "alert_threshold_hint": "_Segundos continuos de mala postura antes de la primera alarma_",
+        "ip_cam_title":    "Cámara IP / RTSP",
+        "ip_cam_url_label": "URL de la cámara",
+        "ip_cam_url_ph":   "http://192.168.x.x:8080/video  o  rtsp://...",
+        "ip_cam_connect":  "Conectar",
+        "ip_cam_disconnect": "Desconectar",
+        "ip_cam_hint":     "_Compatible con IP Webcam, DroidCam, ESP32-CAM y cualquier stream RTSP/MJPEG_",
+        "ip_cam_status_idle": "Sin conexión",
+        "ip_cam_status_ok":  "✓ Conectado",
+        "ip_cam_status_err": "✗ No se pudo conectar — verificá la URL y la red",
         "thresh_ok":      "✓ Umbrales actualizados — Leve: {leve:.0f} | Crítico: {crit:.0f}",
         "thresh_err":     "⚠ Umbral leve ({leve:.0f}) debe ser menor que crítico ({crit:.0f})",
         "lang_label":     "Idioma / Language",
@@ -228,6 +237,15 @@ LANGS: dict[str, dict[str, str]] = {
         "alert_interval_hint": "_How often the alarm repeats on the app while posture is bad_",
         "alert_threshold": "Alert threshold (s)",
         "alert_threshold_hint": "_Seconds of continuous bad posture before first alarm_",
+        "ip_cam_title":    "IP Camera / RTSP",
+        "ip_cam_url_label": "Camera URL",
+        "ip_cam_url_ph":   "http://192.168.x.x:8080/video  or  rtsp://...",
+        "ip_cam_connect":  "Connect",
+        "ip_cam_disconnect": "Disconnect",
+        "ip_cam_hint":     "_Works with IP Webcam, DroidCam, ESP32-CAM and any RTSP/MJPEG stream_",
+        "ip_cam_status_idle": "Not connected",
+        "ip_cam_status_ok":  "✓ Connected",
+        "ip_cam_status_err": "✗ Could not connect — check URL and network",
         "thresh_ok":      "✓ Thresholds updated — Mild: {leve:.0f} | Critical: {crit:.0f}",
         "thresh_err":     "⚠ Mild threshold ({leve:.0f}) must be less than critical ({crit:.0f})",
         "lang_label":     "Idioma / Language",
@@ -310,6 +328,15 @@ LANGS: dict[str, dict[str, str]] = {
         "alert_interval_hint": "_Com quantos segundos o alarme se repete no app enquanto a postura for ruim_",
         "alert_threshold": "Limiar de alerta (s)",
         "alert_threshold_hint": "_Segundos de má postura contínua antes do primeiro alarme_",
+        "ip_cam_title":    "Câmera IP / RTSP",
+        "ip_cam_url_label": "URL da câmera",
+        "ip_cam_url_ph":   "http://192.168.x.x:8080/video  ou  rtsp://...",
+        "ip_cam_connect":  "Conectar",
+        "ip_cam_disconnect": "Desconectar",
+        "ip_cam_hint":     "_Compatível com IP Webcam, DroidCam, ESP32-CAM e qualquer stream RTSP/MJPEG_",
+        "ip_cam_status_idle": "Sem conexão",
+        "ip_cam_status_ok":  "✓ Conectado",
+        "ip_cam_status_err": "✗ Não foi possível conectar — verifique a URL e a rede",
         "thresh_ok":      "✓ Limiares atualizados — Leve: {leve:.0f} | Crítico: {crit:.0f}",
         "thresh_err":     "⚠ Limiar leve ({leve:.0f}) deve ser menor que crítico ({crit:.0f})",
         "lang_label":     "Idioma / Language",
@@ -403,6 +430,61 @@ else:
     _alert_router = None
     _qr_panel = None
     print("[INFO] Mobile QR notifications DISABLED (POSTURE_WS_ENABLED=false, default)")
+
+# ── IP Camera state ───────────────────────────────────────────────────────────
+import threading as _threading
+import numpy as _np_ipcam
+
+_ip_cam_active: bool = False
+_ip_cam_cap = None  # cv2.VideoCapture, opened lazily
+_ip_cam_lock = _threading.Lock()
+_ip_cam_last_frame = None  # last successfully read frame (numpy array)
+
+
+def _ip_cam_connect(url: str) -> tuple[bool, str]:
+    """Open an IP camera URL via OpenCV. Returns (success, status_message)."""
+    global _ip_cam_active, _ip_cam_cap, _ip_cam_last_frame
+    url = (url or "").strip()
+    if not url:
+        return False, LANGS[_current_lang]["ip_cam_status_idle"]
+    with _ip_cam_lock:
+        if _ip_cam_cap is not None:
+            _ip_cam_cap.release()
+            _ip_cam_cap = None
+        cap = cv2.VideoCapture(url)
+        if cap.isOpened():
+            _ip_cam_cap = cap
+            _ip_cam_active = True
+            _ip_cam_last_frame = None
+            return True, LANGS[_current_lang]["ip_cam_status_ok"]
+        cap.release()
+        _ip_cam_active = False
+        return False, LANGS[_current_lang]["ip_cam_status_err"]
+
+
+def _ip_cam_disconnect() -> None:
+    """Release the IP camera capture and reset state."""
+    global _ip_cam_active, _ip_cam_cap, _ip_cam_last_frame
+    with _ip_cam_lock:
+        _ip_cam_active = False
+        _ip_cam_last_frame = None
+        if _ip_cam_cap is not None:
+            _ip_cam_cap.release()
+            _ip_cam_cap = None
+
+
+def _ip_cam_read() -> "_np_ipcam.ndarray | None":
+    """Read one frame from the open IP camera (thread-safe). Returns None on failure."""
+    global _ip_cam_last_frame
+    with _ip_cam_lock:
+        if not _ip_cam_active or _ip_cam_cap is None:
+            return None
+        ret, frame = _ip_cam_cap.read()
+        if ret and frame is not None:
+            _ip_cam_last_frame = frame
+            return frame
+        # Return last good frame on read failure to avoid flicker
+        return _ip_cam_last_frame
 
 # ── Rutas de modelos ─────────────────────────────────────────────────────────
 # MODELS_DIR: por defecto <repo_root>/models/
@@ -2444,6 +2526,7 @@ def _on_lang_change(lang: str, leve: float, critico: float, is_active: bool) -> 
         gr.update(value=_build_keypoints_table_html(lang)), # keypoints_table
         gr.update(label=t["calib_title"]), # calib_accordion
         gr.update(label=t["kp_title"]), # kp_accordion
+        gr.update(label=t["ip_cam_title"]), # ip_cam_accordion
         gr.update(label=t["session_title"]), # session_accordion
         gr.update(value=t["model_info_def"]), # model_info
     ]
@@ -2686,6 +2769,21 @@ def build_ui() -> gr.Blocks:
                 with kp_accordion:
                     keypoints_table = gr.HTML(_build_keypoints_table_html(DEFAULT_LANG))
 
+                # ── IP Camera / RTSP source ──────────────────────────────────
+                ip_cam_accordion = gr.Accordion(t0["ip_cam_title"], open=False)
+                with ip_cam_accordion:
+                    ip_cam_url_input = gr.Textbox(
+                        label=t0["ip_cam_url_label"],
+                        placeholder=t0["ip_cam_url_ph"],
+                        lines=1,
+                        interactive=True,
+                    )
+                    gr.Markdown(t0["ip_cam_hint"])
+                    with gr.Row():
+                        ip_cam_btn = gr.Button(t0["ip_cam_connect"], variant="primary", size="sm")
+                        ip_cam_disc_btn = gr.Button(t0["ip_cam_disconnect"], variant="secondary", size="sm", visible=False)
+                    ip_cam_status_md = gr.Markdown(f"_{t0['ip_cam_status_idle']}_")
+
             # ── DERECHA: solo métricas vivas + sesión ──
             with gr.Column(scale=1, min_width=340, elem_classes=["pm-sidebar"]):
                 metrics_panel = gr.HTML(_build_static_metrics_panel(DEFAULT_LANG))
@@ -2743,7 +2841,7 @@ def build_ui() -> gr.Blocks:
             header_html, metrics_panel, threshold_table, leve_slider, critico_slider,
             session_btn, session_status, threshold_msg, export_file,
             export_btn, model_dropdown, webcam, keypoints_table,
-            calib_accordion, kp_accordion, session_accordion, model_info,
+            calib_accordion, kp_accordion, ip_cam_accordion, session_accordion, model_info,
         ]
         if _POSTURE_WS_ENABLED:
             _lang_outputs += [alert_config_accordion, alert_interval_slider, alert_interval_msg, alert_threshold_slider, alert_threshold_msg]
@@ -2802,6 +2900,58 @@ def build_ui() -> gr.Blocks:
                 inputs=[alert_threshold_slider],
                 outputs=[alert_threshold_msg],
             )
+
+        # ── IP Camera events + timer ────────────────────────────────────────
+        ip_cam_timer = gr.Timer(value=STREAM_EVERY, active=False)
+
+        def _on_ip_cam_connect(url: str):
+            ok, msg = _ip_cam_connect(url)
+            if ok:
+                return (
+                    gr.update(visible=False),          # ip_cam_btn hide
+                    gr.update(visible=True),           # ip_cam_disc_btn show
+                    f"**{msg}**",                      # ip_cam_status_md
+                    gr.update(active=True),            # ip_cam_timer start
+                )
+            return (
+                gr.update(visible=True),
+                gr.update(visible=False),
+                f"_{msg}_",
+                gr.update(active=False),
+            )
+
+        def _on_ip_cam_disconnect():
+            _ip_cam_disconnect()
+            t = LANGS.get(_current_lang, LANGS["es"])
+            return (
+                gr.update(visible=True),
+                gr.update(visible=False),
+                f"_{t['ip_cam_status_idle']}_",
+                gr.update(active=False),
+            )
+
+        def _ip_cam_tick(model_name: str):
+            """Read one IP camera frame and run inference (replaces webcam stream)."""
+            frame = _ip_cam_read()
+            if frame is None:
+                return gr.skip(), gr.skip()
+            return process_frame(frame, model_name)
+
+        ip_cam_btn.click(
+            fn=_on_ip_cam_connect,
+            inputs=[ip_cam_url_input],
+            outputs=[ip_cam_btn, ip_cam_disc_btn, ip_cam_status_md, ip_cam_timer],
+        )
+        ip_cam_disc_btn.click(
+            fn=_on_ip_cam_disconnect,
+            inputs=[],
+            outputs=[ip_cam_btn, ip_cam_disc_btn, ip_cam_status_md, ip_cam_timer],
+        )
+        ip_cam_timer.tick(
+            fn=_ip_cam_tick,
+            inputs=[model_dropdown],
+            outputs=[webcam, metrics_data],
+        )
 
     return app, head_script
 
