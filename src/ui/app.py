@@ -1149,7 +1149,46 @@ def process_frame(frame: np.ndarray, model_choice: str) -> tuple[np.ndarray, str
         except Exception:
             pass
 
-        # ── WebSocket: notify person_left for expired persons ───────────
+        # ── WebSocket: persons_update — broadcast ALL detected persons every 2s ──
+        # This lets the mobile app show real-time person detection regardless of alert threshold.
+        if all_postures:
+            try:
+                _now = time.time()
+                sessions = _ws_manager.get_all_sessions()
+                _status_code_map = {"CORRECTO": "ok", "ALERTA LEVE": "warn", "ALERTA CRÍTICA": "crit", "NO DETECTADO": "nd"}
+                for sid, ctx in sessions.items():
+                    _last = getattr(ctx, "_last_persons_update", 0.0)
+                    if _now - _last >= 2.0:
+                        ctx._last_persons_update = _now
+                        _persons_payload = {
+                            "type": "persons_update",
+                            "persons": [
+                                {
+                                    "person_id": p.person_id,
+                                    "status_code": _status_code_map.get(p.status.value, "nd"),
+                                    "status_label": p.status.value,
+                                    "cpi": round(p.cpi, 1),
+                                    "lumbar": round(p.lumbar_angle_deg, 1),
+                                    "curvature": round(p.curvature_pct, 2),
+                                    "bad_time": round(p.bad_posture_accumulated_s, 1),
+                                    "confidence": round(p.confidence, 3),
+                                }
+                                for p in all_postures
+                            ],
+                            "timestamp": _now,
+                        }
+                        loop = _ws_manager.loop
+                        if loop is not None and not loop.is_closed():
+                            import asyncio as _asyncio_pu
+                            fut = _asyncio_pu.run_coroutine_threadsafe(
+                                _ws_manager.broadcast(sid, _persons_payload), loop
+                            )
+                            try:
+                                fut.result(timeout=1.0)
+                            except Exception:
+                                pass
+            except Exception:
+                pass
         if _POSTURE_WS_ENABLED and _alert_router is not None and _ws_manager is not None and _person_left_ids:
             try:
                 sessions = _ws_manager.get_all_sessions()

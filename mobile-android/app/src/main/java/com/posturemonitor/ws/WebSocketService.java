@@ -17,6 +17,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import com.posturemonitor.MainActivity;
 import com.posturemonitor.R;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -53,11 +54,13 @@ public class WebSocketService extends Service {
     public static final String BROADCAST_ALERT = "com.posturemonitor.WS_ALERT";
     public static final String BROADCAST_RESOLUTION = "com.posturemonitor.WS_RESOLUTION";
     public static final String BROADCAST_PERSON_LEFT = "com.posturemonitor.WS_PERSON_LEFT";
+    public static final String BROADCAST_PERSONS_UPDATE = "com.posturemonitor.WS_PERSONS_UPDATE";
     public static final String BROADCAST_ERROR = "com.posturemonitor.WS_ERROR";
 
     // Extras for alert broadcast
     public static final String EXTRA_ALERT_JSON = "alertJson";
     public static final String EXTRA_PERSON_ID = "personId";
+    public static final String EXTRA_PERSONS_JSON = "personsJson";
     public static final String EXTRA_ERROR_MSG = "errorMsg";
 
     // Notification channel (separate from posture alert channel)
@@ -196,6 +199,29 @@ public class WebSocketService extends Service {
             try {
                 Intent intent = new Intent(BROADCAST_PERSON_LEFT);
                 intent.putExtra(EXTRA_PERSON_ID, personId);
+                broadcastManager.sendBroadcast(intent);
+            } catch (Exception ignored) {
+            }
+        }
+
+        @Override
+        public void onPersonsUpdate(java.util.List<com.posturemonitor.model.PostureAlert> persons) {
+            try {
+                JSONArray arr = new JSONArray();
+                for (com.posturemonitor.model.PostureAlert p : persons) {
+                    JSONObject obj = new JSONObject();
+                    obj.put("person_id", p.personId);
+                    obj.put("status_code", p.statusCode);
+                    obj.put("status_label", p.statusLabel);
+                    obj.put("cpi", p.cpi);
+                    obj.put("lumbar", p.lumbar);
+                    obj.put("curvature", p.curvature);
+                    obj.put("bad_time", p.badTime);
+                    obj.put("confidence", p.confidence);
+                    arr.put(obj);
+                }
+                Intent intent = new Intent(BROADCAST_PERSONS_UPDATE);
+                intent.putExtra(EXTRA_PERSONS_JSON, arr.toString());
                 broadcastManager.sendBroadcast(intent);
             } catch (Exception ignored) {
             }

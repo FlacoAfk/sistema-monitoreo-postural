@@ -33,6 +33,7 @@ import com.posturemonitor.ui.PersonCardAdapter;
 import com.posturemonitor.ui.QrScannerActivity;
 import com.posturemonitor.ws.WebSocketService;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -375,6 +376,13 @@ public class MainActivity extends AppCompatActivity {
                     });
                     break;
 
+                case WebSocketService.BROADCAST_PERSONS_UPDATE:
+                    String personsJson = intent.getStringExtra(WebSocketService.EXTRA_PERSONS_JSON);
+                    if (personsJson != null) {
+                        handlePersonsUpdate(personsJson);
+                    }
+                    break;
+
                 case WebSocketService.BROADCAST_ERROR:
                     String errorMsg = intent.getStringExtra(WebSocketService.EXTRA_ERROR_MSG);
                     if (errorMsg != null) {
@@ -386,6 +394,31 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
+    private void handlePersonsUpdate(String personsJson) {
+        runOnUiThread(() -> {
+            try {
+                JSONArray arr = new JSONArray(personsJson);
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject obj = arr.getJSONObject(i);
+                    PostureAlert p = new PostureAlert();
+                    p.personId = obj.optInt("person_id", 0);
+                    p.statusCode = obj.optString("status_code", "nd");
+                    p.statusLabel = obj.optString("status_label", "");
+                    p.cpi = obj.optDouble("cpi", 0);
+                    p.lumbar = obj.optDouble("lumbar", 0);
+                    p.curvature = obj.optDouble("curvature", 0);
+                    p.badTime = obj.optDouble("bad_time", 0);
+                    p.confidence = obj.optDouble("confidence", 0);
+                    p.timestamp = System.currentTimeMillis();
+                    adapter.updatePerson(p);
+                }
+                if (adapter.hasPersons()) {
+                    emptyStateText.setVisibility(View.GONE);
+                }
+            } catch (JSONException ignored) {}
+        });
+    }
 
     private void handleAlert(JSONObject alertJson) {
         runOnUiThread(() -> {
@@ -427,6 +460,7 @@ public class MainActivity extends AppCompatActivity {
         filter.addAction(WebSocketService.BROADCAST_ALERT);
         filter.addAction(WebSocketService.BROADCAST_RESOLUTION);
         filter.addAction(WebSocketService.BROADCAST_PERSON_LEFT);
+        filter.addAction(WebSocketService.BROADCAST_PERSONS_UPDATE);
         filter.addAction(WebSocketService.BROADCAST_ERROR);
         broadcastManager.registerReceiver(wsReceiver, filter);
 

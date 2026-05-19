@@ -17,6 +17,8 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
+import com.posturemonitor.model.PostureAlert;
+
 /**
  * Cliente WebSocket para conectar al servidor de alertas posturales.
  * Protocolo:
@@ -25,6 +27,7 @@ import okhttp3.WebSocketListener;
  *   Server → PWA: {"type": "alert", "person_id": N, ...}
  *   Server → PWA: {"type": "resolution", "person_id": N}
  *   Server → PWA: {"type": "person_left", "person_id": N}
+ *   Server → PWA: {"type": "persons_update", "persons": [...]}
  *   Server → PWA: {"type": "ping"}
  *   PWA → Server: {"type": "pong"}
  */
@@ -50,6 +53,7 @@ public class WsClient {
         void onAlert(JSONObject alert);
         void onResolution(int personId);
         void onPersonLeft(int personId);
+        void onPersonsUpdate(List<PostureAlert> persons);
         void onError(String message);
     }
 
@@ -155,6 +159,12 @@ public class WsClient {
                     int leftId = json.optInt("person_id", -1);
                     notifyPersonLeft(leftId);
                     break;
+                case "persons_update":
+                    JSONArray personsArray = json.optJSONArray("persons");
+                    if (personsArray != null) {
+                        notifyPersonsUpdate(parsePersonsList(personsArray));
+                    }
+                    break;
                 case "ping":
                     sendPong();
                     break;
@@ -228,6 +238,35 @@ public class WsClient {
         mainHandler.post(() -> {
             for (Listener l : listeners) {
                 l.onPersonLeft(personId);
+            }
+        });
+    }
+
+    private List<PostureAlert> parsePersonsList(JSONArray array) {
+        List<PostureAlert> persons = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            try {
+                JSONObject obj = array.getJSONObject(i);
+                PostureAlert p = new PostureAlert();
+                p.personId = obj.optInt("person_id", 0);
+                p.statusCode = obj.optString("status_code", "nd");
+                p.statusLabel = obj.optString("status_label", "");
+                p.cpi = obj.optDouble("cpi", 0);
+                p.lumbar = obj.optDouble("lumbar", 0);
+                p.curvature = obj.optDouble("curvature", 0);
+                p.badTime = obj.optDouble("bad_time", 0);
+                p.confidence = obj.optDouble("confidence", 0);
+                p.timestamp = System.currentTimeMillis();
+                persons.add(p);
+            } catch (JSONException ignored) {}
+        }
+        return persons;
+    }
+
+    private void notifyPersonsUpdate(List<PostureAlert> persons) {
+        mainHandler.post(() -> {
+            for (Listener l : listeners) {
+                l.onPersonsUpdate(persons);
             }
         });
     }
