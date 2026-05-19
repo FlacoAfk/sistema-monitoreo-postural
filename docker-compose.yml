@@ -22,6 +22,7 @@ services:
       - "traefik.http.services.posture-monitor.loadbalancer.server.port=7860"
       # WebSocket mobile — port 8765 via /ws path
       - "traefik.http.routers.posture-ws.rule=Host(`posture.158-69-200-27.sslip.io`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.posture-ws.priority=10000"
       - "traefik.http.routers.posture-ws.entrypoints=websecure"
       - "traefik.http.routers.posture-ws.tls=true"
       - "traefik.http.routers.posture-ws.tls.certresolver=letsencrypt"
