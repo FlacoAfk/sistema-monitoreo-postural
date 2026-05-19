@@ -440,21 +440,24 @@ _ip_cam_active: bool = False
 _ip_cam_cap = None          # cv2.VideoCapture (stream mode)
 _ip_cam_jpeg_url: str = ""  # JPEG snapshot URL (jpeg mode)
 _ip_cam_mode: str = ""      # "stream" | "jpeg"
-_ip_cam_lock = _threading.Lock()
-_ip_cam_last_frame = None   # last successfully decoded frame (numpy array)
+_ip_cam_lock = _threading.Lock()           # guards cap/mode/active
+_ip_cam_frame_lock = _threading.Lock()    # guards latest_frame only
+_ip_cam_latest_frame = None               # most-recent decoded frame
+_ip_cam_running: bool = False             # background reader alive flag
+_ip_cam_bg_thread = None                  # daemon reader thread
 
 # Candidate sub-paths tried in order when the user gives a base URL
 _IP_CAM_STREAM_PATHS = ["/video", "/videofeed", "/stream", ""]
 _IP_CAM_JPEG_PATHS   = ["/shot.jpg", "/photo.jpg", "/image.jpg"]
 
 
-def _ip_cam_try_jpeg(base: str) -> str | None:
+def _ip_cam_try_jpeg(base: str) -> "str | None":
     """Return the first working JPEG snapshot URL, or None."""
     for path in _IP_CAM_JPEG_PATHS:
         url = base.rstrip("/") + path
         try:
             resp = _urllib_req.urlopen(url, timeout=3)
-            data = resp.read(32)          # read just the header bytes
+            data = resp.read(32)
             if data[:2] == b"\xff\xd8":   # JPEG magic bytes
                 return url
         except Exception:
@@ -475,81 +478,112 @@ def _ip_cam_try_stream(base: str) -> "cv2.VideoCapture | None":
     return None
 
 
-def _ip_cam_connect(url: str) -> tuple[bool, str]:
+def _ip_cam_start_bg_reader(cap=None, jpeg_url: str = "") -> None:
+    """Start a daemon thread that continuously buffers the latest camera frame.
+
+    Stream mode: calls cap.read() in a tight loop — always has the freshest frame ready.
+    JPEG mode: polls jpeg_url every ~33ms (~30fps cap to avoid hammering the phone).
+    """
+    global _ip_cam_running, _ip_cam_bg_thread, _ip_cam_latest_frame
+
+    _ip_cam_running = True
+    _ip_cam_latest_frame = None
+
+    def _reader_stream():
+        global _ip_cam_latest_frame, _ip_cam_running
+        while _ip_cam_running:
+            if cap is None or not cap.isOpened():
+                break
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                with _ip_cam_frame_lock:
+                    _ip_cam_latest_frame = frame
+
+    def _reader_jpeg():
+        global _ip_cam_latest_frame, _ip_cam_running
+        import time as _t
+        while _ip_cam_running and jpeg_url:
+            try:
+                resp = _urllib_req.urlopen(jpeg_url, timeout=2)
+                data = _np_ipcam.frombuffer(resp.read(), dtype=_np_ipcam.uint8)
+                frame = cv2.imdecode(data, cv2.IMREAD_COLOR)
+                if frame is not None:
+                    with _ip_cam_frame_lock:
+                        _ip_cam_latest_frame = frame
+            except Exception:
+                pass
+            _t.sleep(0.033)  # ~30fps ceiling for JPEG polling
+
+    target = _reader_stream if cap is not None else _reader_jpeg
+    _ip_cam_bg_thread = _threading.Thread(target=target, daemon=True, name="ip-cam-reader")
+    _ip_cam_bg_thread.start()
+
+
+def _ip_cam_connect(url: str) -> "tuple[bool, str]":
     """Try every known strategy to connect. Returns (success, status_message)."""
-    global _ip_cam_active, _ip_cam_cap, _ip_cam_jpeg_url, _ip_cam_mode, _ip_cam_last_frame
+    global _ip_cam_active, _ip_cam_cap, _ip_cam_jpeg_url, _ip_cam_mode, _ip_cam_running
+
     url = (url or "").strip().rstrip("/")
     if not url:
         return False, LANGS[_current_lang]["ip_cam_status_idle"]
 
+    # Stop any running background reader first
+    _ip_cam_running = False
+    if _ip_cam_bg_thread is not None:
+        _ip_cam_bg_thread.join(timeout=1.0)
+
     with _ip_cam_lock:
-        # Release any previous capture
         if _ip_cam_cap is not None:
             _ip_cam_cap.release()
             _ip_cam_cap = None
         _ip_cam_jpeg_url = ""
         _ip_cam_mode = ""
         _ip_cam_active = False
-        _ip_cam_last_frame = None
 
-        # 1. Try MJPEG/RTSP stream first (lower latency)
+        # 1. Try MJPEG/RTSP stream (lowest latency)
         cap = _ip_cam_try_stream(url)
         if cap is not None:
             _ip_cam_cap = cap
             _ip_cam_mode = "stream"
             _ip_cam_active = True
+            _ip_cam_start_bg_reader(cap=cap)
             return True, LANGS[_current_lang]["ip_cam_status_ok"]
 
-        # 2. Fall back to JPEG snapshot polling (works with IP Webcam, ESP32, etc.)
+        # 2. Fall back to JPEG snapshot polling
         jpeg_url = _ip_cam_try_jpeg(url)
         if jpeg_url:
             _ip_cam_jpeg_url = jpeg_url
             _ip_cam_mode = "jpeg"
             _ip_cam_active = True
+            _ip_cam_start_bg_reader(jpeg_url=jpeg_url)
             return True, LANGS[_current_lang]["ip_cam_status_ok"]
 
         return False, LANGS[_current_lang]["ip_cam_status_err"]
 
 
 def _ip_cam_disconnect() -> None:
-    """Release all resources and reset state."""
-    global _ip_cam_active, _ip_cam_cap, _ip_cam_jpeg_url, _ip_cam_mode, _ip_cam_last_frame
+    """Stop background reader and release all resources."""
+    global _ip_cam_active, _ip_cam_cap, _ip_cam_jpeg_url, _ip_cam_mode, _ip_cam_running
+    _ip_cam_running = False
+    if _ip_cam_bg_thread is not None:
+        _ip_cam_bg_thread.join(timeout=1.0)
     with _ip_cam_lock:
         _ip_cam_active = False
-        _ip_cam_last_frame = None
         _ip_cam_jpeg_url = ""
         _ip_cam_mode = ""
         if _ip_cam_cap is not None:
             _ip_cam_cap.release()
             _ip_cam_cap = None
+    with _ip_cam_frame_lock:
+        pass  # just ensure lock is released
 
 
 def _ip_cam_read() -> "_np_ipcam.ndarray | None":
-    """Read one frame — stream or JPEG mode, thread-safe. Returns None if inactive."""
-    global _ip_cam_last_frame
-    with _ip_cam_lock:
-        if not _ip_cam_active:
-            return None
-
-        if _ip_cam_mode == "stream" and _ip_cam_cap is not None:
-            ret, frame = _ip_cam_cap.read()
-            if ret and frame is not None:
-                _ip_cam_last_frame = frame
-                return frame
-
-        elif _ip_cam_mode == "jpeg" and _ip_cam_jpeg_url:
-            try:
-                resp = _urllib_req.urlopen(_ip_cam_jpeg_url, timeout=2)
-                data = _np_ipcam.frombuffer(resp.read(), dtype=_np_ipcam.uint8)
-                frame = cv2.imdecode(data, cv2.IMREAD_COLOR)
-                if frame is not None:
-                    _ip_cam_last_frame = frame
-                    return frame
-            except Exception:
-                pass
-
-        # Return last good frame on transient failure to avoid flicker
-        return _ip_cam_last_frame
+    """Return the latest pre-buffered frame (near-zero latency)."""
+    if not _ip_cam_active:
+        return None
+    with _ip_cam_frame_lock:
+        return _ip_cam_latest_frame
 
 # ── Rutas de modelos ─────────────────────────────────────────────────────────
 # MODELS_DIR: por defecto <repo_root>/models/
@@ -3016,6 +3050,8 @@ def build_ui() -> gr.Blocks:
             fn=_ip_cam_tick,
             inputs=[model_dropdown],
             outputs=[webcam, metrics_data],
+            queue=False,
+            show_progress="hidden",
         )
 
     return app, head_script
