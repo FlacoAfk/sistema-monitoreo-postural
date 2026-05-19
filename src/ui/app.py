@@ -2791,9 +2791,6 @@ def build_ui() -> gr.Blocks:
     head_script = f'<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap"><script>{theme_js}({METRICS_JS})();</script>'
     with gr.Blocks(
         title="Monitoreo Postural — USCO 2026",
-        css=CSS,
-        theme=THEME,
-        head=head_script,
     ) as app:
         session_state = gr.State(False)
 
@@ -3057,7 +3054,7 @@ def build_ui() -> gr.Blocks:
             show_progress="hidden",
         )
 
-    return app
+    return app, head_script
 
 
 # ── Limpieza de cache ────────────────────────────────────────────────────────
@@ -3102,32 +3099,48 @@ if __name__ == "__main__":
     _clear_gradio_cache()
     _kill_port(7860)
 
-    # Precargar modelo default ANTES de arrancar servidor
     print("[INIT] Precargando modelo default para arranque instantáneo...")
     state.load_model(MODEL_CONFIGS[0]["path"])
-    print("[INIT] Modelo listo. Iniciando servidor...\n")
+    print("[INIT] Modelo listo. Iniciando servidor Gradio...\n")
 
     _pwa_dir = str(Path(__file__).resolve().parent / "pwa")
     _pwa_paths = [_pwa_dir] if os.path.isdir(_pwa_dir) else []
 
-    demo = build_ui()
+    app, head_script = build_ui()
+    _launch_result = app.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        favicon_path="src/ui/pwa/icon.png",
+        share=False,
+        show_error=True,
+        prevent_thread_lock=True,
+        css=CSS,
+        theme=THEME,
+        head=head_script,
+        allowed_paths=_pwa_paths,
+    )
+    # Gradio 6.x returns TupleNoPrint(fastapi_app, local_url, None) from launch()
+    # Index [0] is the gradio.routes.App (FastAPI subclass) — also at demo.app
+    _launch_fastapi = None
+    if isinstance(_launch_result, tuple) and len(_launch_result) >= 1:
+        _launch_fastapi = _launch_result[0]  # gradio.routes.App
+    if _launch_fastapi is None:
+        _launch_fastapi = getattr(app, "app", None) or getattr(app, "server_app", None)
 
+    # ── Add WebSocket endpoint at /ws on the SAME port as Gradio ─────────
+    # In Gradio 6.x, after launch() the running FastAPI/ASGI app is
+    # accessible via app.server.app. We add a WebSocket route there so that
+    # /ws is handled on port 7860 without needing a separate port.
     if _POSTURE_WS_ENABLED:
-        # ── Production mode: FastAPI + Gradio mount + WebSocket at /ws ──────
-        # Runs everything on port 7860 — no separate port needed for WS.
-        # Traefik routes all traffic to port 7860; /ws is handled internally.
         import asyncio as _asyncio
         import json as _json_ws
-        import uvicorn as _uvicorn
-        from fastapi import FastAPI as _FastAPI
         from fastapi import WebSocket as _FastAPIWebSocket
-        from starlette.websockets import WebSocketState as _WSState, WebSocketDisconnect as _WSDis
-
-        _fastapi_app = _FastAPI()
+        from starlette.websockets import WebSocketState as _WSState
+        from starlette.websockets import WebSocketDisconnect as _WSDis
 
         class _WsAdapter:
-            """Makes a FastAPI WebSocket look like a websockets.WebSocketServerProtocol."""
-            def __init__(self, ws: _FastAPIWebSocket):
+            """Adapts a FastAPI WebSocket to the interface expected by WSManager."""
+            def __init__(self, ws: "_FastAPIWebSocket"):
                 self._ws = ws
 
             async def send(self, data: str) -> None:
@@ -3138,10 +3151,8 @@ if __name__ == "__main__":
                 from websockets.protocol import State as _S
                 return _S.OPEN if self._ws.client_state == _WSState.CONNECTED else _S.CLOSED
 
-        @_fastapi_app.websocket("/ws")
-        async def _ws_endpoint(ws: _FastAPIWebSocket):
+        async def _ws_handler(ws: "_FastAPIWebSocket"):
             await ws.accept()
-            # Store the running event loop so Gradio threads can dispatch alerts
             _ws_manager.set_loop(_asyncio.get_running_loop())
             adapter = _WsAdapter(ws)
             paired_sid = None
@@ -3184,20 +3195,20 @@ if __name__ == "__main__":
                     await _ws_manager.unpair(paired_sid)
                     print(f"[WS] Client disconnected: sid={paired_sid[:8]}...")
 
-        _fastapi_app = gr.mount_gradio_app(
-            _fastapi_app, demo, path="/",
-            allowed_paths=_pwa_paths,
-        )
-        print("[WS] WebSocket endpoint ready at /ws (same port 7860)")
-        _uvicorn.run(_fastapi_app, host="0.0.0.0", port=7860, log_level="warning")
+        # Add /ws route to Gradio's running FastAPI app (gradio.routes.App)
+        _gradio_fastapi = _launch_fastapi
+        if _gradio_fastapi is not None and callable(getattr(_gradio_fastapi, "add_api_websocket_route", None)):
+            _gradio_fastapi.add_api_websocket_route("/ws", _ws_handler)
+            print("[WS] WebSocket endpoint registered at /ws (port 7860)", flush=True)
+        else:
+            # Fallback: separate server on 8765
+            from src.ws.server import start_ws_server as _start_ws
+            _start_ws(host="0.0.0.0", port=8765)
+            print("[WS] WebSocket server started on port 8765 (fallback)", flush=True)
 
-    else:
-        # ── Local/dev mode: standard Gradio launch ───────────────────────────
-        demo.launch(
-            server_name="0.0.0.0",
-            server_port=7860,
-            favicon_path="src/ui/pwa/icon.png",
-            share=False,
-            show_error=True,
-            allowed_paths=_pwa_paths,
-        )
+    # Keep process alive
+    try:
+        while True:
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        app.close()
